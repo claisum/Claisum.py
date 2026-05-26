@@ -95,7 +95,9 @@ Pull requests are welcome! See the [GitHub repository](https://github.com/claisu
 
 ## Full Website
 
-[Claisum Website](https://claisum-configurator--claisumpy.replit.app/).
+The Full Website i here -> [Claisum Website](https://claisum-configurator--claisumpy.replit.app/).
+
+Thanks to everyone ♡
 
 ## License
 
