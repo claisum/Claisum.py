@@ -1,0 +1,73 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build Python package
+        run: python -m build
+
+      - name: Package Windows installer
+        run: |
+          zip -j claisum-windows.zip installers/install-windows.bat README.md
+          zip -r claisum-windows.zip claisum/ setup.py pyproject.toml requirements.txt
+
+      - name: Package Linux installer
+        run: |
+          zip -j claisum-linux.zip installers/install-linux.sh README.md
+          zip -r claisum-linux.zip claisum/ setup.py pyproject.toml requirements.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Claisum ${{ github.ref_name }}"
+          body: |
+            ## Claisum ${{ github.ref_name }}
+
+            ### Windows
+            **GUI Installer (recommended)** — Download `Claisum-Installer.exe` and double-click it.
+            No terminal needed. Installs everything automatically and restarts Discord.
+
+            **Batch installer** — Download `claisum-windows.zip`, extract it, run `install-windows.bat`
+
+            ### Linux
+            Download `claisum-linux.zip`, extract it, then run:
+            ```bash
+            chmod +x install-linux.sh && ./install-linux.sh
+            ```
+
+            ### Android
+            See `install-android.md`
+
+            ### pip (all platforms)
+            ```bash
+            pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
+            ```
+
+            Requires Python 3.12+
+          files: |
+            claisum-windows.zip
+            claisum-linux.zip
+            installers/install-android.md
+            dist/*.whl
+            dist/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
