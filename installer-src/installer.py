@@ -109,6 +109,7 @@ class App(tk.Tk):
         self._build()
         self._goto(0)
 
+
     def _center(self):
         self.update_idletasks()
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
@@ -181,7 +182,7 @@ class App(tk.Tk):
         self.step = n
         self._refresh_sidebar()
         self._clear()
-        [self._welcome, self._checks, self._options,
+        [self._welcome, self._checks, self._page_options,
          self._installing, self._done][n]()
 
     def _next(self):
@@ -309,7 +310,7 @@ class App(tk.Tk):
         threading.Thread(target=worker, daemon=True).start()
 
     # ── Page 2 — Options ─────────────────────────────────────────────────────
-    def _options(self):
+    def _page_options(self):
         self.btn_back.config(state="normal")
         self.btn_next.config(state="normal", text="Install →", bg=ACCENT)
 
