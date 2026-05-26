@@ -1,14 +1,14 @@
-name: Build Installer EXE
+name: Build Installer (manual)
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build-windows:
-    name: Build Windows Installer (no dependencies required)
+  build:
+    name: Build Windows EXE only (no release)
     runs-on: windows-latest
 
     steps:
@@ -20,21 +20,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install build tools and dependencies
+      - name: Install dependencies
         run: |
           pip install pyinstaller
           pip install click requests colorama "rich>=13.0"
 
-      - name: Build claisum.exe (standalone CLI)
+      - name: Build claisum.exe
         run: |
-          pyinstaller `
-            --onefile `
-            --console `
-            --name claisum `
-            claisum/cli.py
-        # Result: dist/claisum.exe — fully self-contained, no Python needed
+          pyinstaller --onefile --console --name claisum claisum/cli.py
 
-      - name: Build Claisum-Setup.exe (GUI installer with bundled CLI)
+      - name: Build Claisum-Setup.exe
         run: |
           pyinstaller `
             --onefile `
@@ -42,45 +37,12 @@ jobs:
             --name "Claisum-Setup" `
             --add-data "dist/claisum.exe;." `
             installer-src/installer.py
-        # claisum.exe is embedded inside Claisum-Setup.exe
-        # User only needs to download Claisum-Setup.exe
 
-      - name: Upload installer artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Claisum-Setup-Windows
+          name: Claisum-Windows-EXE
           path: |
             dist/Claisum-Setup.exe
             dist/claisum.exe
-
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "Claisum ${{ github.ref_name }}"
-          body: |
-            ## Claisum ${{ github.ref_name }}
-
-            ### Windows — GUI Installer (recommended)
-            1. Download **`Claisum-Setup.exe`**
-            2. Double-click it
-            3. Follow the steps — done!
-
-            **No Python, no Git, no Node.js required.**
-            Discord will be restarted automatically.
-
-            ---
-
-            ### Windows — CLI only (portable)
-            Download **`claisum.exe`** and place it anywhere on your PATH.
-
-            ### Linux / Android
-            ```bash
-            pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
-            ```
-
-          files: |
-            dist/Claisum-Setup.exe
-            dist/claisum.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          retention-days: 7
