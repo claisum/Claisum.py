@@ -4,70 +4,90 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
-    name: Create Release
-    runs-on: ubuntu-latest
+    name: Build and publish release
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install build tools
-        run: pip install build
+        run: |
+          pip install pyinstaller build
+          pip install click requests colorama "rich>=13.0"
 
-      - name: Build Python package
+      - name: Build claisum.exe (standalone CLI)
+        run: |
+          pyinstaller `
+            --onefile `
+            --console `
+            --name claisum `
+            claisum/cli.py
+
+      - name: Build Claisum-Setup.exe (GUI installer with bundled CLI)
+        run: |
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --name "Claisum-Setup" `
+            --add-data "dist/claisum.exe;." `
+            installer-src/installer.py
+
+      - name: Build Python package (sdist + wheel)
         run: python -m build
-
-      - name: Package Windows installer
-        run: |
-          zip -j claisum-windows.zip installers/install-windows.bat README.md
-          zip -r claisum-windows.zip claisum/ setup.py pyproject.toml requirements.txt
-
-      - name: Package Linux installer
-        run: |
-          zip -j claisum-linux.zip installers/install-linux.sh README.md
-          zip -r claisum-linux.zip claisum/ setup.py pyproject.toml requirements.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "Claisum ${{ github.ref_name }}"
+          prerelease: false
+          draft: false
           body: |
             ## Claisum ${{ github.ref_name }}
 
-            ### Windows
-            **GUI Installer (recommended)** — Download `Claisum-Installer.exe` and double-click it.
-            No terminal needed. Installs everything automatically and restarts Discord.
+            ### Windows — GUI Installer (recommended)
+            1. Download **`Claisum-Setup.exe`**
+            2. Double-click it — no Python, Git or Node.js required
+            3. Follow the steps, Discord restarts automatically
 
-            **Batch installer** — Download `claisum-windows.zip`, extract it, run `install-windows.bat`
+            ### Windows — CLI only (portable)
+            Download **`claisum.exe`** and place it anywhere on your PATH.
 
             ### Linux
-            Download `claisum-linux.zip`, extract it, then run:
-            ```bash
-            chmod +x install-linux.sh && ./install-linux.sh
-            ```
-
-            ### Android
-            See `install-android.md`
-
-            ### pip (all platforms)
             ```bash
             pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
             ```
+            Or use the included `install-linux.sh`.
 
-            Requires Python 3.12+
+            ### Android (Termux)
+            ```bash
+            pkg install python && pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
+            ```
+
+            ### After installing
+            ```
+            claisum --help
+            claisum discord themes list
+            claisum discord plugins available
+            ```
+
+            Requires Python 3.12+ (not needed for the Windows EXE installer).
           files: |
-            claisum-windows.zip
-            claisum-linux.zip
-            installers/install-android.md
+            dist/Claisum-Setup.exe
+            dist/claisum.exe
             dist/*.whl
             dist/*.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            installers/install-linux.sh
+            installers/install-android.md
