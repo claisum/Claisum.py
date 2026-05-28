@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import os, sys, shutil, threading, glob, ctypes, subprocess, time
 
-# ── Colors ────────────────────────────────────────────────────────────────────
 BG      = "#1e1e2e"
 BG2     = "#181825"
 BG3     = "#313244"
@@ -26,7 +25,6 @@ CONFLICTS = {
                                    "Programs", "Vencord")],
     "BetterDiscord": [os.path.join(os.environ.get("APPDATA",""), "BetterDiscord")],
     "Moonlight":     [os.path.join(os.environ.get("APPDATA",""), "Moonlight")],
-    "Powercord":     [os.path.join(os.environ.get("APPDATA",""), "powercord")],
 }
 
 
@@ -44,6 +42,59 @@ def find_discord():
         if hits:
             return hits[0]
     return None
+
+
+def find_discord_core():
+    """Find Discord's core index.js to patch."""
+    local = os.environ.get("LOCALAPPDATA", "")
+    for variant in ["Discord", "DiscordPTB", "DiscordCanary"]:
+        base = os.path.join(local, variant)
+        if not os.path.isdir(base):
+            continue
+        for app_dir in sorted(glob.glob(os.path.join(base, "app-*")), reverse=True):
+            core = os.path.join(app_dir, "modules",
+                                "discord_desktop_core-1",
+                                "discord_desktop_core", "index.js")
+            if os.path.isfile(core):
+                return core
+    return None
+
+
+def inject_claisum(inject_js_path):
+    """Patch Discord's index.js to load claisum_inject.js."""
+    marker = "// [Claisum Injected]"
+    core = find_discord_core()
+    if not core:
+        return False, "Discord core not found"
+
+    try:
+        with open(core, "r", encoding="utf-8") as f:
+            content = f.read()
+        if marker in content:
+            return True, "already injected"
+
+        core_dir = os.path.dirname(core)
+        inject_dst = os.path.join(core_dir, "claisum_inject.js")
+        shutil.copy2(inject_js_path, inject_dst)
+
+        loader = f"""
+{marker}
+try {{
+  const fs = require('fs');
+  const path = require('path');
+  const js = fs.readFileSync(path.join(__dirname, 'claisum_inject.js'), 'utf8');
+  window.addEventListener('load', () => {{
+    setTimeout(() => {{ try {{ eval(js); }} catch(e) {{ console.error('[Claisum]', e); }} }}, 2000);
+  }});
+}} catch(e) {{ console.error('[Claisum preload]', e); }}
+"""
+        with open(core, "a", encoding="utf-8") as f:
+            f.write(loader)
+        return True, core
+    except PermissionError:
+        return False, "Permission denied — run as Administrator"
+    except Exception as e:
+        return False, str(e)
 
 
 def add_to_path(directory):
@@ -70,7 +121,7 @@ def register_uninstall(idir):
             r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Claisum")
         for name, typ, val in [
             ("DisplayName",     winreg.REG_SZ,    "Claisum"),
-            ("DisplayVersion",  winreg.REG_SZ,    "0.1.0"),
+            ("DisplayVersion",  winreg.REG_SZ,    "0.2.0"),
             ("Publisher",       winreg.REG_SZ,    "Claisum"),
             ("InstallLocation", winreg.REG_SZ,    idir),
             ("UninstallString", winreg.REG_SZ,    os.path.join(idir, "uninstall.bat")),
@@ -90,7 +141,6 @@ def register_uninstall(idir):
         pass
 
 
-# ── App ───────────────────────────────────────────────────────────────────────
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -105,10 +155,8 @@ class App(tk.Tk):
         self.install_dir  = tk.StringVar(value=INSTALL_DEFAULT)
         self.restart_disc = tk.BooleanVar(value=True)
         self._labels      = []
-
         self._build()
         self._goto(0)
-
 
     def _center(self):
         self.update_idletasks()
@@ -117,38 +165,32 @@ class App(tk.Tk):
 
     def _close(self):
         if self.step == 3 and not messagebox.askyesno(
-                "Cancel?", "Installation is running.\nQuit anyway?"):
+                "Cancel?", "Installation is running. Quit anyway?"):
             return
         self.destroy()
 
-    # ── Layout (CORRECT pack order: bottom → sidebar → content) ──────────────
     def _build(self):
-        # 1. Bottom bar — must be packed FIRST so it's not covered
         bot = tk.Frame(self, bg=BG2, height=56)
         bot.pack(side="bottom", fill="x")
         bot.pack_propagate(False)
 
-        self.btn_back = tk.Button(
-            bot, text="← Back", bg=BG2, fg=DIM, relief="flat",
+        self.btn_back = tk.Button(bot, text="← Back", bg=BG2, fg=DIM, relief="flat",
             font=("Segoe UI", 10), activebackground=BG2, activeforeground=TEXT,
             command=self._back, padx=16, pady=6, bd=0, cursor="hand2")
         self.btn_back.pack(side="left", padx=16, pady=10)
 
-        self.btn_next = tk.Button(
-            bot, text="Next →", bg=ACCENT, fg="#ffffff", relief="flat",
-            font=("Segoe UI", 10, "bold"), activebackground=ACCENT2,
-            activeforeground="#ffffff", command=self._next,
-            padx=22, pady=6, bd=0, cursor="hand2")
+        self.btn_next = tk.Button(bot, text="Next →", bg=ACCENT, fg="#ffffff", relief="flat",
+            font=("Segoe UI", 10, "bold"), activebackground=ACCENT2, activeforeground="#ffffff",
+            command=self._next, padx=22, pady=6, bd=0, cursor="hand2")
         self.btn_next.pack(side="right", padx=16, pady=10)
 
-        # 2. Sidebar — second
         sb = tk.Frame(self, bg=BG2, width=168)
         sb.pack(side="left", fill="y")
         sb.pack_propagate(False)
 
         tk.Label(sb, text="CLAISUM", bg=BG2, fg=ACCENT,
                  font=("Segoe UI", 15, "bold")).pack(pady=(28, 2))
-        tk.Label(sb, text="Setup v0.1.0", bg=BG2, fg=DIM,
+        tk.Label(sb, text="Setup v0.2.0", bg=BG2, fg=DIM,
                  font=("Segoe UI", 8)).pack()
         tk.Frame(sb, bg=BG3, height=1).pack(fill="x", padx=18, pady=16)
 
@@ -158,21 +200,17 @@ class App(tk.Tk):
             lbl.pack(fill="x", padx=8, pady=2)
             self._labels.append(lbl)
 
-        # 3. Content — last, fills remaining space
         self.area = tk.Frame(self, bg=BG)
         self.area.pack(side="left", fill="both", expand=True)
 
     def _refresh_sidebar(self):
         for i, lbl in enumerate(self._labels):
             if i < self.step:
-                lbl.config(fg=OK,     text=f"  ✓ {STEPS[i]}",
-                           font=("Segoe UI", 10))
+                lbl.config(fg=OK, text=f"  ✓ {STEPS[i]}", font=("Segoe UI", 10))
             elif i == self.step:
-                lbl.config(fg=ACCENT, text=f"  ▶ {STEPS[i]}",
-                           font=("Segoe UI", 10, "bold"))
+                lbl.config(fg=ACCENT, text=f"  ▶ {STEPS[i]}", font=("Segoe UI", 10, "bold"))
             else:
-                lbl.config(fg=DIM,    text=f"  {STEPS[i]}",
-                           font=("Segoe UI", 10))
+                lbl.config(fg=DIM, text=f"  {STEPS[i]}", font=("Segoe UI", 10))
 
     def _clear(self):
         for w in self.area.winfo_children():
@@ -191,9 +229,7 @@ class App(tk.Tk):
         elif self.step == 1:
             if self.conflicts and not messagebox.askyesno(
                     "Conflicts found",
-                    f"Found: {', '.join(self.conflicts)}\n\n"
-                    "These mods may conflict with Claisum.\n"
-                    "Continue anyway?"):
+                    f"Found: {', '.join(self.conflicts)}\n\nThese may conflict with Claisum.\nContinue anyway?"):
                 return
             self._goto(2)
         elif self.step == 2:
@@ -205,7 +241,6 @@ class App(tk.Tk):
         if self.step in (1, 2):
             self._goto(self.step - 1)
 
-    # ── Page helpers ──────────────────────────────────────────────────────────
     def _frame(self):
         f = tk.Frame(self.area, bg=BG)
         f.pack(fill="both", expand=True, padx=36, pady=24)
@@ -218,54 +253,40 @@ class App(tk.Tk):
             tk.Label(parent, text=sub, bg=BG, fg=DIM,
                      font=("Segoe UI", 9)).pack(anchor="w", pady=(2, 18))
 
-    # ── Page 0 — Welcome ─────────────────────────────────────────────────────
     def _welcome(self):
         self.btn_back.config(state="disabled")
         self.btn_next.config(state="normal", text="Next →", bg=ACCENT)
-
         f = self._frame()
-        self._heading(f, "Welcome to Claisum Setup",
-                      "Discord Theme & Plugin Manager")
-        for line in [
+        self._heading(f, "Welcome to Claisum Setup", "Discord Theme & Plugin Manager")
+        for text, color, weight in [
             ("This installer will:", TEXT, "bold"),
-            ("  • Copy claisum.exe to your computer", OK, ""),
-            ("  • Add it to PATH automatically", OK, ""),
-            ("  • Register it in Add/Remove Programs", OK, ""),
+            ("  • Inject Claisum into Discord", OK, ""),
+            ("  • Add Themes and Plugins tabs to Discord Settings", OK, ""),
+            ("  • Let you install, create and publish themes & plugins", OK, ""),
             ("  • Restart Discord when done", OK, ""),
             ("", DIM, ""),
-            ("You do not need Python, Git or anything else.", TEXT, ""),
-            ("Just click Next to continue.", DIM, ""),
+            ("No Python, Git or anything else required.", TEXT, ""),
+            ("Just double-clicked and done!", DIM, ""),
         ]:
-            text, color, weight = line
             font = ("Segoe UI", 10, weight) if weight else ("Segoe UI", 10)
-            tk.Label(f, text=text, bg=BG, fg=color,
-                     font=font, anchor="w").pack(fill="x", pady=1)
+            tk.Label(f, text=text, bg=BG, fg=color, font=font, anchor="w").pack(fill="x", pady=1)
 
-    # ── Page 1 — Checks ──────────────────────────────────────────────────────
     def _checks(self):
         self.btn_back.config(state="normal")
         self.btn_next.config(state="disabled", bg=BG3, text="Next →")
-
         f = self._frame()
-        self._heading(f, "System Check",
-                      "Checking your system before installation…")
+        self._heading(f, "System Check", "Checking your system before installation…")
         self._chk = {}
-        for key in ["No conflicting mods", "Discord is installed",
-                    "Installer files OK"]:
-            row = tk.Frame(f, bg=BG)
-            row.pack(fill="x", pady=6)
-            dot = tk.Label(row, text="○", bg=BG, fg=DIM,
-                           font=("Segoe UI", 13))
+        for key in ["No conflicting mods", "Discord is installed", "Installer files OK"]:
+            row = tk.Frame(f, bg=BG); row.pack(fill="x", pady=6)
+            dot = tk.Label(row, text="○", bg=BG, fg=DIM, font=("Segoe UI", 13))
             dot.pack(side="left", padx=(0, 12))
-            tk.Label(row, text=key, bg=BG, fg=TEXT,
-                     font=("Segoe UI", 10)).pack(side="left")
-            note = tk.Label(row, text="…", bg=BG, fg=DIM,
-                            font=("Segoe UI", 9))
+            tk.Label(row, text=key, bg=BG, fg=TEXT, font=("Segoe UI", 10)).pack(side="left")
+            note = tk.Label(row, text="…", bg=BG, fg=DIM, font=("Segoe UI", 9))
             note.pack(side="right")
             self._chk[key] = (dot, note)
-        self._chk_msg = tk.Label(f, text="", bg=BG, fg=WARN,
-                                 font=("Segoe UI", 9),
-                                 wraplength=370, justify="left")
+        self._chk_msg = tk.Label(f, text="", bg=BG, fg=WARN, font=("Segoe UI", 9),
+                                  wraplength=370, justify="left")
         self._chk_msg.pack(anchor="w", pady=(14, 0))
 
     def _set_chk(self, key, good, note=""):
@@ -280,96 +301,66 @@ class App(tk.Tk):
                      if any(os.path.isdir(p) for p in paths)]
             self.conflicts = found
             if found:
-                self.after(0, self._set_chk, "No conflicting mods",
-                           False, ", ".join(found))
+                self.after(0, self._set_chk, "No conflicting mods", False, ", ".join(found))
                 msgs.append(f"⚠ Detected: {', '.join(found)}")
             else:
                 self.after(0, self._set_chk, "No conflicting mods", True, "Clear")
-
             disc = find_discord()
             if disc:
-                self.after(0, self._set_chk, "Discord is installed",
-                           True, os.path.basename(os.path.dirname(disc)))
+                self.after(0, self._set_chk, "Discord is installed", True,
+                           os.path.basename(os.path.dirname(disc)))
             else:
                 self.after(0, self._set_chk, "Discord is installed", False, "Not found")
                 msgs.append("⚠ Discord not found — install Discord first.")
-
-            bundled = resource("claisum.exe")
+            bundled = resource("claisum_inject.js")
             if os.path.isfile(bundled):
-                sz = os.path.getsize(bundled)
-                self.after(0, self._set_chk, "Installer files OK",
-                           True, f"{sz//1024//1024} MB")
+                self.after(0, self._set_chk, "Installer files OK", True, "Ready")
             else:
-                self.after(0, self._set_chk, "Installer files OK",
-                           False, "claisum.exe missing")
+                self.after(0, self._set_chk, "Installer files OK", False, "claisum_inject.js missing")
                 msgs.append("⚠ Installer bundle is incomplete.")
-
             self.after(0, self._chk_msg.config, {"text": "\n".join(msgs)})
-            self.after(0, self.btn_next.config,
-                       {"state": "normal", "bg": ACCENT})
+            self.after(0, self.btn_next.config, {"state": "normal", "bg": ACCENT})
         threading.Thread(target=worker, daemon=True).start()
 
-    # ── Page 2 — Options ─────────────────────────────────────────────────────
     def _page_options(self):
         self.btn_back.config(state="normal")
         self.btn_next.config(state="normal", text="Install →", bg=ACCENT)
-
         f = self._frame()
-        self._heading(f, "Installation Options",
-                      "Choose where to install Claisum.")
-
+        self._heading(f, "Installation Options", "Choose where to save Claisum files.")
         tk.Label(f, text="Install location", bg=BG, fg=TEXT,
                  font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        row = tk.Frame(f, bg=BG)
-        row.pack(fill="x", pady=(4, 16))
+        row = tk.Frame(f, bg=BG); row.pack(fill="x", pady=(4, 16))
         tk.Entry(row, textvariable=self.install_dir, bg=BG2, fg=TEXT,
                  insertbackground=TEXT, relief="flat",
-                 font=("Segoe UI", 9)).pack(
-                     side="left", fill="x", expand=True, ipady=6, padx=(0, 6))
+                 font=("Segoe UI", 9)).pack(side="left", fill="x", expand=True, ipady=6, padx=(0, 6))
         tk.Button(row, text="Browse…", bg=BG3, fg=TEXT, relief="flat",
                   font=("Segoe UI", 9), bd=0, cursor="hand2",
                   command=self._browse).pack(side="right", ipady=4, ipadx=10)
-
-        tk.Label(f, text="Options", bg=BG, fg=TEXT,
-                 font=("Segoe UI", 10, "bold")).pack(anchor="w")
         tk.Checkbutton(f, text="Restart Discord after installation",
                        variable=self.restart_disc, bg=BG, fg=TEXT,
-                       selectcolor=BG2, activebackground=BG,
-                       activeforeground=TEXT,
+                       selectcolor=BG2, activebackground=BG, activeforeground=TEXT,
                        font=("Segoe UI", 10)).pack(anchor="w", pady=(6, 4))
-        tk.Label(f, text="claisum.exe will be placed in the selected folder\n"
-                         "and added to your PATH automatically.",
-                 bg=BG, fg=DIM, font=("Segoe UI", 9),
-                 justify="left").pack(anchor="w", pady=(12, 0))
 
     def _browse(self):
         d = filedialog.askdirectory(initialdir=self.install_dir.get())
         if d:
             self.install_dir.set(d)
 
-    # ── Page 3 — Installing ───────────────────────────────────────────────────
     def _installing(self):
         self.btn_back.config(state="disabled")
         self.btn_next.config(state="disabled", bg=BG3)
-
         f = self._frame()
         self._heading(f, "Installing…")
-        self._st = tk.Label(f, text="Starting…", bg=BG, fg=DIM,
-                            font=("Segoe UI", 9))
+        self._st = tk.Label(f, text="Starting…", bg=BG, fg=DIM, font=("Segoe UI", 9))
         self._st.pack(anchor="w", pady=(0, 10))
-
-        style = ttk.Style(self)
-        style.theme_use("clam")
+        style = ttk.Style(self); style.theme_use("clam")
         style.configure("C.Horizontal.TProgressbar",
                         troughcolor=BG2, background=ACCENT, thickness=6)
         self._pb = ttk.Progressbar(f, style="C.Horizontal.TProgressbar",
-                                   mode="indeterminate", length=400)
-        self._pb.pack(fill="x")
-        self._pb.start(10)
-
+                                    mode="indeterminate", length=400)
+        self._pb.pack(fill="x"); self._pb.start(10)
         self._log = tk.Text(f, bg=BG2, fg=DIM, font=("Consolas", 8),
-                            relief="flat", height=10, state="disabled",
-                            wrap="word")
+                             relief="flat", height=10, state="disabled", wrap="word")
         self._log.pack(fill="x", pady=(12, 0))
 
     def _log_line(self, text, tag="d"):
@@ -378,8 +369,7 @@ class App(tk.Tk):
             for t, c in [("ok", OK), ("er", ERR), ("w", WARN), ("d", DIM)]:
                 self._log.tag_config(t, foreground=c)
             self._log.insert("end", text + "\n", tag)
-            self._log.see("end")
-            self._log.config(state="disabled")
+            self._log.see("end"); self._log.config(state="disabled")
         self.after(0, _do)
 
     def _setstatus(self, t):
@@ -392,77 +382,70 @@ class App(tk.Tk):
         try:
             idir = self.install_dir.get()
             self._setstatus("Creating install directory…")
-            self._log_line(f"→ Location: {idir}")
             os.makedirs(idir, exist_ok=True)
+            self._log_line(f"→ Location: {idir}")
 
-            self._setstatus("Copying claisum.exe…")
-            src = resource("claisum.exe")
-            dst = os.path.join(idir, "claisum.exe")
-            self._log_line(f"→ Copying claisum.exe…")
-            shutil.copy2(src, dst)
-            self._log_line(f"✓ Done ({os.path.getsize(dst)//1024//1024} MB)", "ok")
+            self._setstatus("Copying Claisum files…")
+            for fname in ["claisum_inject.js"]:
+                src = resource(fname)
+                dst = os.path.join(idir, fname)
+                if os.path.isfile(src):
+                    shutil.copy2(src, dst)
+                    self._log_line(f"✓ Copied {fname}", "ok")
+
+            self._setstatus("Injecting into Discord…")
+            inject_js = os.path.join(idir, "claisum_inject.js")
+            ok, msg = inject_claisum(inject_js)
+            if ok:
+                self._log_line("✓ Claisum injected into Discord", "ok")
+                self._log_line("  → Themes & Plugins tabs added to Discord Settings", "ok")
+            else:
+                self._log_line(f"⚠ Injection: {msg}", "w")
 
             register_uninstall(idir)
             self._log_line("✓ Registered in Add/Remove Programs", "ok")
 
-            self._setstatus("Updating PATH…")
-            ok = add_to_path(idir)
-            self._log_line("✓ Added to PATH" if ok
-                           else "⚠ Could not update PATH", "ok" if ok else "w")
-
             if self.restart_disc.get():
                 self._setstatus("Restarting Discord…")
-                self._log_line("→ Closing Discord…")
+                self._log_line("→ Restarting Discord…")
                 for proc in ("Discord.exe", "DiscordPTB.exe", "DiscordCanary.exe"):
-                    subprocess.run(["taskkill", "/F", "/IM", proc],
-                                   capture_output=True)
+                    subprocess.run(["taskkill", "/F", "/IM", proc], capture_output=True)
                 time.sleep(2)
                 disc = find_discord()
                 if disc:
                     subprocess.Popen([disc])
                     self._log_line("✓ Discord restarted", "ok")
                 else:
-                    self._log_line("⚠ Discord not found — start manually", "w")
+                    self._log_line("⚠ Start Discord manually", "w")
 
-            self._log_line("─────────────────────────", "ok")
-            self._log_line("  claisum.exe is ready!", "ok")
-            self._log_line(f"  {dst}", "ok")
-            self._log_line("  Open a NEW terminal: claisum --help", "ok")
+            self._log_line("─────────────────────────────────────", "ok")
+            self._log_line("  Claisum is ready!", "ok")
+            self._log_line("  Open Discord → Settings → Themes or Plugins", "ok")
             self.after(0, self._pb.stop)
-            self.after(0, self._pb.config,
-                       {"mode": "determinate", "value": 100})
+            self.after(0, self._pb.config, {"mode": "determinate", "value": 100})
             self._setstatus("Installation complete!")
             self.after(800, self._goto, 4)
-
         except Exception as e:
             self._log_line(f"✗ {e}", "er")
             self._setstatus("Installation failed.")
             self.after(0, self._pb.stop)
-            self.after(0, messagebox.showerror, "Error",
-                       f"Failed:\n{e}\n\nTry running as Administrator.")
+            self.after(0, messagebox.showerror, "Error", f"Failed:\n{e}\n\nTry running as Administrator.")
 
-    # ── Page 4 — Done ────────────────────────────────────────────────────────
     def _done(self):
         self.btn_back.config(state="disabled")
-        self.btn_next.config(state="normal", text="Finish",
-                             bg=OK, fg=BG)
+        self.btn_next.config(state="normal", text="Finish", bg=OK, fg=BG)
         f = self._frame()
-        tk.Label(f, text="✓", bg=BG, fg=OK,
-                 font=("Segoe UI", 44)).pack(pady=(0, 8))
+        tk.Label(f, text="✓", bg=BG, fg=OK, font=("Segoe UI", 44)).pack(pady=(0, 8))
         tk.Label(f, text="Claisum installed!", bg=BG, fg=TEXT,
                  font=("Segoe UI", 16, "bold")).pack()
-        tk.Label(f, text="Open a NEW terminal window and run:",
-                 bg=BG, fg=DIM, font=("Segoe UI", 10)).pack(pady=(14, 6))
-        cb = tk.Frame(f, bg=BG2)
-        cb.pack(pady=2)
-        tk.Label(cb, text="claisum --help", bg=BG2, fg=ACCENT,
-                 font=("Consolas", 12), pady=8, padx=24).pack()
-        for cmd in ["claisum discord themes list",
-                    "claisum discord plugins available"]:
-            tk.Label(f, text=cmd, bg=BG, fg=DIM,
-                     font=("Consolas", 9)).pack(pady=2)
+        tk.Label(f, text="Open Discord and go to Settings", bg=BG, fg=DIM,
+                 font=("Segoe UI", 11)).pack(pady=(14, 4))
+        tk.Label(f, text="You'll find  🎨 Themes  and  🔌 Plugins  tabs there.", bg=BG, fg=TEXT,
+                 font=("Segoe UI", 11)).pack()
+        tk.Label(f, text="Browse themes, enable plugins, create your own and publish for others!",
+                 bg=BG, fg=DIM, font=("Segoe UI", 9), wraplength=360).pack(pady=(10, 0))
         tk.Label(f, text="Uninstall anytime via Add/Remove Programs.",
-                 bg=BG, fg=DIM, font=("Segoe UI", 9)).pack(pady=(16, 0))
+                 bg=BG, fg=DIM, font=("Segoe UI", 9)).pack(pady=(14, 0))
 
 
 if __name__ == "__main__":
