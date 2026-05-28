@@ -19,12 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install dependencies
-        run: pip install pyinstaller pyinstaller-hooks-contrib click rich
+        run: pip install pyinstaller pyinstaller-hooks-contrib
       - name: Build Claisum_Setup.exe
         run: |
           pyinstaller --onefile --windowed --name "Claisum_Setup" `
@@ -35,18 +35,19 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: dist/Claisum_Setup.exe
+          overwrite: true
 
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install dependencies
-        run: pip install pyinstaller pyinstaller-hooks-contrib click rich
+        run: pip install pyinstaller pyinstaller-hooks-contrib
       - name: Build Claisum_Linux_Setup
         run: |
           pyinstaller --onefile --name "Claisum_Linux_Setup" \
@@ -57,3 +58,4 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: dist/Claisum_Linux_Setup
+          overwrite: true
