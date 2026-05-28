@@ -1,93 +1,44 @@
-name: Build & Release
+name: Build & Release Installers
 
 on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-
-permissions:
-  contents: write
+  release:
+    types: [created]
 
 jobs:
-  release:
-    name: Build and publish release
+  build-windows:
     runs-on: windows-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-
-      - name: Install build tools
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pyinstaller pyinstaller-hooks-contrib click rich
+      - name: Build Claisum_Setup.exe
         run: |
-          pip install pyinstaller build
-          pip install click requests colorama "rich>=13.0"
-
-      - name: Build claisum.exe (standalone CLI)
-        run: |
-          pyinstaller `
-            --onefile `
-            --console `
-            --name claisum `
-            claisum/cli.py
-
-      - name: Build Claisum-Setup.exe (GUI installer with bundled CLI)
-        run: |
-          pyinstaller `
-            --onefile `
-            --windowed `
-            --name "Claisum-Setup" `
-            --add-data "dist/claisum.exe;." `
+          pyinstaller --onefile --windowed --name "Claisum_Setup" `
+            --add-data "claisum/discord/claisum_inject.js;." `
             installer-src/installer.py
-
-      - name: Build Python package (sdist + wheel)
-        run: python -m build
-
-      - name: Create GitHub Release
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Claisum ${{ github.ref_name }}"
-          prerelease: false
-          draft: false
-          body: |
-            ## Claisum ${{ github.ref_name }}
+          files: dist/Claisum_Setup.exe
 
-            ### Windows — GUI Installer (recommended)
-            1. Download **`Claisum-Setup.exe`**
-            2. Double-click it — no Python, Git or Node.js required
-            3. Follow the steps, Discord restarts automatically
-
-            ### Windows — CLI only (portable)
-            Download **`claisum.exe`** and place it anywhere on your PATH.
-
-            ### Linux
-            ```bash
-            pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
-            ```
-            Or use the included `install-linux.sh`.
-
-            ### Android (Termux)
-            ```bash
-            pkg install python && pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
-            ```
-
-            ### After installing
-            ```
-            claisum --help
-            claisum discord themes list
-            claisum discord plugins available
-            ```
-
-            Requires Python 3.12+ (not needed for the Windows EXE installer).
-          files: |
-            dist/Claisum-Setup.exe
-            dist/claisum.exe
-            dist/*.whl
-            dist/*.tar.gz
-            installers/install-linux.sh
-            installers/install-android.md
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pyinstaller pyinstaller-hooks-contrib click rich
+      - name: Build Claisum_Linux_Setup
+        run: |
+          pyinstaller --onefile --name "Claisum_Linux_Setup" \
+            --add-data "claisum/discord/claisum_inject.js:." \
+            installer-src/installer_linux.py
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Claisum_Linux_Setup
