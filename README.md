@@ -1,104 +1,106 @@
 # Claisum
 
-**Customize your Discord the way you want it.**
+**Customize your Discord with Themes and Plugins — built right into Discord Settings.**
 
-Claisum is an open-source CLI tool that lets you manage Discord themes and plugins with a single command. Inspired by Spicetify, built for everyone.
+Claisum adds two new tabs to Discord's Settings panel:
+- 🎨 **Themes** — change Discord's look with beautiful themes
+- 🔌 **Plugins** — extend Discord with useful plugins
+
+Browse the built-in library, **create your own**, and **publish them for the community!**
+No commands to memorize. Everything is inside Discord Settings.
 
 ## Installation
 
 ### Windows
 
-**Option 1 — GUI Installer (recommended, no dependencies required):**
-
 1. Go to [GitHub Releases](https://github.com/claisum/Claisum.py/releases/latest)
-2. Download `Claisum-Setup.exe`
+2. Download **`Claisum_Setup.exe`**
 3. Double-click and follow the steps
+4. Restart Discord → open Settings → find **Themes** and **Plugins** tabs
 
 No Python, Git or Node.js required.
 
-**Option 2 — pip:**
-```bash
-pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
-```
+---
 
 ### Linux
 
+1. Download **`Claisum_Linux_Setup`** from [GitHub Releases](https://github.com/claisum/Claisum.py/releases/latest)
+2. Open a terminal and run:
+
 ```bash
-pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
+chmod +x Claisum_Linux_Setup
+./Claisum_Linux_Setup
 ```
 
-Or clone and install manually:
+Or if you need admin rights:
 ```bash
-git clone https://github.com/claisum/Claisum.py
-cd Claisum.py
-pip install .
+sudo ./Claisum_Linux_Setup
 ```
+
+No Python installation required — the binary includes everything.
+
+---
 
 ### Android
 
-Use [Termux](https://termux.dev) and run:
+Android Discord is a native app and does not support direct injection.
+See **[installer-src/ANDROID.md](installer-src/ANDROID.md)** for options including Aliucord integration.
+
+---
+
+## What you can do
+
+### Themes tab (Discord Settings → Themes)
+| Feature | Description |
+|---------|-------------|
+| Browse  | Choose from built-in and community themes |
+| Apply   | One click to apply any theme |
+| Create  | Write your own CSS theme with a built-in editor |
+| Publish | Share your theme with the community on GitHub |
+
+### Plugins tab (Discord Settings → Plugins)
+| Feature | Description |
+|---------|-------------|
+| Browse  | Toggle built-in and community plugins on/off |
+| Create  | Write your own JavaScript plugin with a built-in editor |
+| Publish | Share your plugin with the community on GitHub |
+
+## Built-in Themes
+
+| Theme | Description |
+|-------|-------------|
+| Midnight | Deep dark theme with blue accents |
+| Dracula | The classic Dracula color scheme |
+| Catppuccin Mocha | Soothing pastel theme |
+| Nord | Arctic, north-bluish elegant theme |
+| Rosé Pine | Natural pine with soho vibes |
+
+## Built-in Plugins
+
+| Plugin | Description |
+|--------|-------------|
+| Compact Mode | Reduces message spacing |
+| Hide Nitro Upsells | Removes Nitro ads and banners |
+| Bigger Emojis | Makes emojis larger |
+| Always Show Timestamps | Shows full timestamps on every message |
+| Hide Activities Tab | Hides the activity tab from sidebar |
+
+## Publishing Your Theme or Plugin
+
+Inside Discord, go to Settings → Themes (or Plugins) → Create → fill in your code → click **Save & Publish**.
+This will guide you to open a GitHub Issue where the Claisum team reviews and adds it to the marketplace.
+
+## Uninstall
+
+**Windows:** Add/Remove Programs → Claisum → Uninstall
+
+**Linux:**
 ```bash
-pip install https://github.com/claisum/Claisum.py/archive/refs/heads/main.zip
+./Claisum_Linux_Setup --remove
 ```
-
-Requires **Python 3.12 or higher**.
-
-## Quick Start
-
-```bash
-# List available Discord themes
-claisum discord themes list
-
-# Apply a theme
-claisum discord themes apply midnight
-
-# Install a plugin
-claisum discord plugins install compact-mode
-
-# List installed plugins
-claisum discord plugins list
-
-# Remove a plugin
-claisum discord plugins remove compact-mode
-
-# Check current status
-claisum discord status
-
-# Reset Discord to defaults
-claisum discord reset
-```
-
-## Supported Apps
-
-| App      | Themes | Plugins | Status  |
-|----------|--------|---------|---------|
-| Discord  | ✓      | ✓       | Stable  |
-| Telegram | Soon   | Soon    | Planned |
-| Spotify  | Soon   | Soon    | Planned |
-
-## Built-in Discord Themes
-
-| ID           | Name             | Description                           |
-|--------------|------------------|---------------------------------------|
-| `midnight`   | Midnight         | Deep dark theme with blue accents     |
-| `dracula`    | Dracula          | The classic Dracula color scheme      |
-| `catppuccin` | Catppuccin Mocha | Soothing pastel theme (Mocha variant) |
-
-## Requirements
-
-- Python 3.12+
-- Discord desktop installed (Windows / Linux)
-
-## Contributing
-
-Pull requests are welcome! See the [GitHub repository](https://github.com/claisum/Claisum.py).
-
-## Full Website
-
-The Full Website i here -> [Claisum Website](https://claisum-configurator--claisumpy.replit.app/).
-
-Thanks to everyone ♡
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE)
+
+Thanks to everyone ♡
