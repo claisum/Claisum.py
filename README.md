@@ -1,4 +1,4 @@
-[![Application](https://img.shields.io/badge/Application-Open-blue?style=for-the-badge)](https://forms.gle/fh86mjy2GWvkf6KG7) [![Bug Wiki](https://img.shields.io/badge/Bug_wiki-Open-blue?style=for-the-badge)](https://github.com/claisum/Claisum.py/wiki/Bug-Wiki)
+[![Application](https://img.shields.io/badge/Application-Open-blue?style=for-the-badge)](https://forms.gle/fh86mjy2GWvkf6KG7) [![Bug Wiki](https://img.shields.io/badge/Bug_wiki-Open-blue?style=for-the-badge)](https://github.com/claisum/Claisum.py/wiki/Bug-Wiki) [![Newest Release](https://img.shields.io/badge/Newest_Release-Open-blue?style=for-the-badge)](https://github.com/claisum/Claisum.py/releases/tag/1.0.0.1)
 
 # Claisum ⚡
 
