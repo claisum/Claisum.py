@@ -1,5 +1,5 @@
 // Claisum — Discord Injection v5
-// Optimised: smart readiness poll, efficient re-renders, Ctrl+Shift+C hotkey
+// Optimised: smart readiness poll, efficient re-renders, F8 hotkey
 (function () {
   'use strict';
 
@@ -56,43 +56,44 @@
     var THEMES = [
       { id:'midnight',   name:'Midnight',        preview:'#0d0f12',
         desc:'Deep dark with blue accents',
-        css:':root{--background-primary:#0d0f12;--background-secondary:#101316;--background-tertiary:#08090b;--channeltextarea-background:#1a1d24;--text-normal:#dcddde;--text-muted:#72767d;--header-primary:#ffffff;--interactive-normal:#b9bbbe;}' },
+        css:':root{--background-primary:#0d0f12;--background-secondary:#101316;--background-secondary-alt:#0d0f12;--background-tertiary:#08090b;--channeltextarea-background:#1a1d24;--text-normal:#dcddde;--text-muted:#72767d;--text-link:#5865f2;--header-primary:#ffffff;--header-secondary:#b9bbbe;--interactive-normal:#b9bbbe;--interactive-hover:#dcddde;--interactive-active:#ffffff;--interactive-muted:#4f545c;}' },
       { id:'dracula',    name:'Dracula',          preview:'#282a36',
         desc:'Classic Dracula color scheme',
-        css:':root{--background-primary:#282a36;--background-secondary:#21222c;--background-tertiary:#191a21;--channeltextarea-background:#44475a;--text-normal:#f8f8f2;--text-muted:#6272a4;--header-primary:#f8f8f2;--interactive-normal:#f8f8f2;}' },
+        css:':root{--background-primary:#282a36;--background-secondary:#21222c;--background-secondary-alt:#1e1f29;--background-tertiary:#191a21;--channeltextarea-background:#44475a;--text-normal:#f8f8f2;--text-muted:#6272a4;--text-link:#8be9fd;--header-primary:#f8f8f2;--header-secondary:#bd93f9;--interactive-normal:#f8f8f2;--interactive-hover:#bd93f9;--interactive-active:#ff79c6;--interactive-muted:#6272a4;}' },
       { id:'catppuccin', name:'Catppuccin Mocha', preview:'#1e1e2e',
         desc:'Soothing pastel theme',
-        css:':root{--background-primary:#1e1e2e;--background-secondary:#181825;--background-tertiary:#11111b;--channeltextarea-background:#313244;--text-normal:#cdd6f4;--text-muted:#6c7086;--header-primary:#cdd6f4;--interactive-normal:#cdd6f4;}' },
+        css:':root{--background-primary:#1e1e2e;--background-secondary:#181825;--background-secondary-alt:#11111b;--background-tertiary:#181825;--channeltextarea-background:#313244;--text-normal:#cdd6f4;--text-muted:#6c7086;--text-link:#89b4fa;--header-primary:#cdd6f4;--header-secondary:#bac2de;--interactive-normal:#cdd6f4;--interactive-hover:#b4befe;--interactive-active:#cba6f7;--interactive-muted:#45475a;}' },
       { id:'nord',       name:'Nord',             preview:'#2e3440',
         desc:'Arctic north-bluish color palette',
-        css:':root{--background-primary:#2e3440;--background-secondary:#272c36;--background-tertiary:#1e2229;--channeltextarea-background:#3b4252;--text-normal:#d8dee9;--text-muted:#4c566a;--header-primary:#eceff4;--interactive-normal:#d8dee9;}' },
-      { id:'rose-pine',  name:'Rose Pine',        preview:'#191724',
+        css:':root{--background-primary:#2e3440;--background-secondary:#272c36;--background-secondary-alt:#21262e;--background-tertiary:#1e2229;--channeltextarea-background:#3b4252;--text-normal:#d8dee9;--text-muted:#4c566a;--text-link:#88c0d0;--header-primary:#eceff4;--header-secondary:#e5e9f0;--interactive-normal:#d8dee9;--interactive-hover:#eceff4;--interactive-active:#ffffff;--interactive-muted:#4c566a;}' },
+      { id:'rose-pine',  name:'Rosé Pine',        preview:'#191724',
         desc:'Natural pine, rose and gold tones',
-        css:':root{--background-primary:#191724;--background-secondary:#1f1d2e;--background-tertiary:#191724;--channeltextarea-background:#26233a;--text-normal:#e0def4;--text-muted:#6e6a86;--header-primary:#e0def4;--interactive-normal:#e0def4;}' },
+        css:':root{--background-primary:#191724;--background-secondary:#1f1d2e;--background-secondary-alt:#191724;--background-tertiary:#191724;--channeltextarea-background:#26233a;--text-normal:#e0def4;--text-muted:#6e6a86;--text-link:#9ccfd8;--header-primary:#e0def4;--header-secondary:#e0def4;--interactive-normal:#e0def4;--interactive-hover:#f0f0ff;--interactive-active:#ebbcba;--interactive-muted:#6e6a86;}' },
       { id:'gruvbox',    name:'Gruvbox Dark',     preview:'#282828',
         desc:'Retro groove color scheme',
-        css:':root{--background-primary:#282828;--background-secondary:#1d2021;--background-tertiary:#141617;--channeltextarea-background:#3c3836;--text-normal:#ebdbb2;--text-muted:#928374;--header-primary:#fbf1c7;--interactive-normal:#ebdbb2;}' },
+        css:':root{--background-primary:#282828;--background-secondary:#1d2021;--background-secondary-alt:#1a1a1a;--background-tertiary:#141617;--channeltextarea-background:#3c3836;--text-normal:#ebdbb2;--text-muted:#928374;--text-link:#83a598;--header-primary:#fbf1c7;--header-secondary:#ebdbb2;--interactive-normal:#ebdbb2;--interactive-hover:#fbf1c7;--interactive-active:#ffffff;--interactive-muted:#504945;}' },
       { id:'solarized',  name:'Solarized Dark',   preview:'#002b36',
         desc:'Classic Solarized dark palette',
-        css:':root{--background-primary:#002b36;--background-secondary:#073642;--background-tertiary:#001f27;--channeltextarea-background:#073642;--text-normal:#839496;--text-muted:#586e75;--header-primary:#93a1a1;--interactive-normal:#839496;}' },
+        css:':root{--background-primary:#002b36;--background-secondary:#073642;--background-secondary-alt:#001f27;--background-tertiary:#001f27;--channeltextarea-background:#073642;--text-normal:#839496;--text-muted:#586e75;--text-link:#268bd2;--header-primary:#93a1a1;--header-secondary:#839496;--interactive-normal:#839496;--interactive-hover:#93a1a1;--interactive-active:#fdf6e3;--interactive-muted:#586e75;}' },
     ];
 
+    // Plugin IDs match Python CLI BUILTIN_PLUGINS keys exactly
     var PLUGINS = [
-      { id:'compact',    name:'Compact Mode',
+      { id:'compact-mode',        name:'Compact Mode',
         desc:'Tighter message layout — more content visible at once',
-        css:'.message-2CShn3{padding:2px 16px !important;}.contents-2MsGLg{padding-top:0 !important;}' },
-      { id:'noborder',   name:'Square Corners',
+        css:"[class*='message-']{padding:2px 16px !important;}[class*='contents-']{padding-top:0 !important;}[class*='cozyMessage']{min-height:0 !important;}" },
+      { id:'square-corners',      name:'Square Corners',
         desc:'Removes all border-radius — sharp modern look',
         css:'*{border-radius:0 !important;}' },
-      { id:'bigemoji',   name:'Big Emoji',
+      { id:'big-emoji',           name:'Big Emoji',
         desc:'Enlarges solo emoji to 48 px',
-        css:'.emoji.jumboable{width:48px !important;height:48px !important;}' },
-      { id:'hidegames',  name:'Hide Game Activity',
+        css:"[class*='emoji'][class*='jumboable'],[class*='emojiContainer']{width:48px !important;height:48px !important;}" },
+      { id:'hide-game-activity',  name:'Hide Game Activity',
         desc:'Hides the "playing a game" status bar',
-        css:'[class*="activityStatus"],[class*="gameInfo"]{display:none !important;}' },
-      { id:'noavatar',   name:'Hide Avatars',
+        css:"[class*='activityStatus'],[class*='gameInfo'],[class*='nowPlayingColumn']{display:none !important;}" },
+      { id:'hide-avatars',        name:'Hide Avatars',
         desc:'Removes all user avatars to reduce visual noise',
-        css:'[class*="avatar-"]{display:none !important;}' },
+        css:"[class*='avatar-'],[class*='avatarWrapper']{display:none !important;}" },
     ];
 
     // ── CSS injection helpers ────────────────────────────────────────────
@@ -143,7 +144,7 @@
       'background:none;border:none;color:'+C.DIM+';font-size:22px;' +
       'cursor:pointer;line-height:1;padding:2px 4px;border-radius:4px;' +
       'transition:color .15s;',
-      {textContent:'\u00d7', title:'Close  (Ctrl+Shift+C)'});
+      {textContent:'\u00d7', title:'Close  (F8)'});
     pc.addEventListener('mouseenter', function(){ pc.style.color=C.TEXT; });
     pc.addEventListener('mouseleave', function(){ pc.style.color=C.DIM;  });
     pc.addEventListener('click',      function(){ closePanel(); });
@@ -172,7 +173,7 @@
     var pf = mk('div',
       'padding:8px 16px;background:'+C.BG2+';border-top:1px solid #ffffff14;' +
       'font-size:11px;color:'+C.DIM+';flex-shrink:0;display:flex;align-items:center;');
-    var pfLeft = mk('span',null,{textContent:'Claisum v5  \u2014  Ctrl+Shift+C to toggle'});
+    var pfLeft = mk('span',null,{textContent:'Claisum v5  \u2014  F8 to toggle'});
     var pfRight = mk('a',
       'margin-left:auto;color:'+C.DIM+';text-decoration:none;cursor:pointer;' +
       'transition:color .15s;',
@@ -343,7 +344,7 @@
       'font-size:20px;z-index:999998;' +
       'box-shadow:0 4px 16px #0005,0 0 0 2px #ffffff18;' +
       'transition:transform .15s,box-shadow .15s;',
-      {textContent:'\u26a1', title:'Claisum Settings  (Ctrl+Shift+C)'});
+      {textContent:'\u26a1', title:'Claisum Settings  (F8)'});
     fab.addEventListener('mouseenter', function() {
       fab.style.transform  = 'scale(1.14)';
       fab.style.boxShadow  = '0 6px 24px #0007,0 0 0 2px '+C.ACCENT+'66';
@@ -376,9 +377,9 @@
         closePanel();
     }, {passive:true});
 
-    // Keyboard shortcut: Ctrl+Shift+C
+    // Keyboard shortcut: F8
     document.addEventListener('keydown', function(e) {
-      if (e.ctrlKey && e.shiftKey && e.code==='KeyC') {
+      if (e.key === 'F8') {
         e.preventDefault(); togglePanel();
       }
     });
