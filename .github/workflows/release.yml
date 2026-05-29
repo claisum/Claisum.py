@@ -73,9 +73,9 @@ jobs:
         run: pip install pyinstaller pyinstaller-hooks-contrib
       - name: Build Claisum_macOS_Setup
         run: |
-          pyinstaller --onefile --name "Claisum_macOS_Setup" \
+          pyinstaller --onefile --windowed --name "Claisum_macOS_Setup" \
             --add-data "claisum/discord/claisum_inject.js:." \
-            installer-src/installer_macos.py
+            installer-src/installer_macos_gui.py
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
