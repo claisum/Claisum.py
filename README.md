@@ -1,103 +1,120 @@
-# Claisum
+# Claisum ⚡
 
-**Customize your Discord with Themes and Plugins — built right into Discord Settings.**
+**Discord customization tool — themes & plugins, built right into Discord.**
 
-Claisum adds two new tabs to Discord's Settings panel:
-- 🎨 **Themes** — change Discord's look with beautiful themes
-- 🔌 **Plugins** — extend Discord with useful plugins
+Claisum injects a floating **⚡ button** into Discord. Click it (or press **Ctrl+Shift+C**) to open the Claisum panel with Themes and Plugins tabs.
 
-Browse the built-in library, **create your own**, and **publish them for the community!**
-No commands to memorize. Everything is inside Discord Settings.
+No BetterDiscord. No extra apps. Just one install.
+
+---
 
 ## Installation
 
 ### Windows
 
-1. Go to [GitHub Releases](https://github.com/claisum/Claisum.py/releases/latest)
+1. Go to [Releases](https://github.com/claisum/Claisum.py/releases/latest)
 2. Download **`Claisum_Setup.exe`**
-3. Double-click and follow the steps
-4. Restart Discord → open Settings → find **Themes** and **Plugins** tabs
+3. Double-click → follow the 4-step wizard
+4. Restart Discord → look for the **⚡** in the bottom-left corner
 
-No Python, Git or Node.js required.
-
----
+> No Python, Git or Node.js required.
 
 ### Linux
 
-1. Download **`Claisum_Linux_Setup`** from [GitHub Releases](https://github.com/claisum/Claisum.py/releases/latest)
-2. Open a terminal and run:
+1. Download **`Claisum_Linux_Setup`** from [Releases](https://github.com/claisum/Claisum.py/releases/latest)
+2. Run in a terminal:
 
 ```bash
 chmod +x Claisum_Linux_Setup
 ./Claisum_Linux_Setup
 ```
 
-Or if you need admin rights:
+> If Discord is owned by root: `sudo ./Claisum_Linux_Setup`
+
+**Remove:** `./Claisum_Linux_Setup --remove`
+**Status:** `./Claisum_Linux_Setup --status`
+
+### Python CLI (advanced)
+
 ```bash
-sudo ./Claisum_Linux_Setup
+pip install git+https://github.com/claisum/Claisum.py.git
+claisum discord inject
+claisum discord themes list
+claisum discord plugins available
 ```
 
-No Python installation required — the binary includes everything.
-
 ---
 
-### Android
+## The Claisum Panel
 
-Android Discord is a native app and does not support direct injection.
-See **[installer-src/ANDROID.md](installer-src/ANDROID.md)** for options including Aliucord integration.
+Open with the **⚡** FAB button (bottom-left in Discord) or **Ctrl+Shift+C**.
 
----
-
-## What you can do
-
-### Themes tab (Discord Settings → Themes)
-| Feature | Description |
-|---------|-------------|
-| Browse  | Choose from built-in and community themes |
-| Apply   | One click to apply any theme |
-| Create  | Write your own CSS theme with a built-in editor |
-| Publish | Share your theme with the community on GitHub |
-
-### Plugins tab (Discord Settings → Plugins)
-| Feature | Description |
-|---------|-------------|
-| Browse  | Toggle built-in and community plugins on/off |
-| Create  | Write your own JavaScript plugin with a built-in editor |
-| Publish | Share your plugin with the community on GitHub |
-
-## Built-in Themes
+### Themes tab
 
 | Theme | Description |
 |-------|-------------|
-| Midnight | Deep dark theme with blue accents |
-| Dracula | The classic Dracula color scheme |
-| Catppuccin Mocha | Soothing pastel theme |
-| Nord | Arctic, north-bluish elegant theme |
-| Rosé Pine | Natural pine with soho vibes |
+| Midnight | Deep dark — blue accents |
+| Dracula | Classic Dracula palette |
+| Catppuccin Mocha | Soothing pastel |
+| Nord | Arctic bluish |
+| Rosé Pine | Natural pine + gold |
+| Gruvbox Dark | Retro groove |
+| Solarized Dark | Classic Solarized |
 
-## Built-in Plugins
+Toggle any theme on/off with one click. Only one theme is active at a time. Preference is saved across Discord restarts.
+
+### Plugins tab
 
 | Plugin | Description |
 |--------|-------------|
-| Compact Mode | Reduces message spacing |
-| Hide Nitro Upsells | Removes Nitro ads and banners |
-| Bigger Emojis | Makes emojis larger |
-| Always Show Timestamps | Shows full timestamps on every message |
-| Hide Activities Tab | Hides the activity tab from sidebar |
+| Compact Mode | Tighter message layout |
+| Square Corners | Removes all border-radius |
+| Big Emoji | Solo emoji enlarged to 48 px |
+| Hide Game Activity | Hides "playing a game" bar |
+| Hide Avatars | Removes all user avatars |
 
-## Publishing Your Theme or Plugin
+Multiple plugins can be active at once. All saved in Discord's `localStorage`.
 
-Inside Discord, go to Settings → Themes (or Plugins) → Create → fill in your code → click **Save & Publish**.
-This will guide you to open a GitHub Issue where the Claisum team reviews and adds it to the marketplace.
+---
+
+## Keyboard shortcut
+
+**Ctrl+Shift+C** — toggle the Claisum panel from anywhere in Discord.
+
+---
+
+## Auto-update
+
+Claisum checks GitHub for a new release every time Discord starts (via XHR, non-blocking). If an update is available, a red **!** badge appears on the ⚡ FAB. Run the installer again to update.
+
+---
 
 ## Uninstall
 
-**Windows:** Add/Remove Programs → Claisum → Uninstall
+**Windows:** Run `Claisum_Setup.exe` → choose **Uninstall**
 
-**Linux:**
-```bash
-./Claisum_Linux_Setup --remove
+**Linux:** `./Claisum_Linux_Setup --remove`
+
+**Python CLI:** `claisum discord remove`
+
+---
+
+## CLI reference
+
 ```
+claisum discord inject              Inject Claisum into Discord
+claisum discord remove              Remove Claisum from Discord
+claisum discord status              Check injection status
+claisum discord themes list         List all themes
+claisum discord themes apply <id>   Apply a theme
+claisum discord themes remove       Remove active theme
+claisum discord plugins list        List installed plugins
+claisum discord plugins available   List all available plugins
+claisum discord plugins install <id>
+claisum discord plugins remove <id>
+```
+
+---
 
 ## License
 

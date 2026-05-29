@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claisum"
-version = "0.1.0"
-description = "Customize and mod your favorite apps — Discord themes, plugins, and more."
+version = "1.0.0.1"
+description = "Customize Discord with themes and plugins — no BetterDiscord required."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Claisum", email = "contact@claisum.dev" }]
@@ -20,15 +20,18 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.0",
-    "requests>=2.28",
     "colorama>=0.4",
     "rich>=13.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/claisum/Claisum.py"
+Homepage   = "https://github.com/claisum/Claisum.py"
 Repository = "https://github.com/claisum/Claisum.py"
 "Bug Tracker" = "https://github.com/claisum/Claisum.py/issues"
 
 [project.scripts]
 claisum = "claisum.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["claisum*"]

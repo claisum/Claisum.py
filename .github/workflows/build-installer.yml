@@ -7,42 +7,59 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build Windows EXE only (no release)
+  build-windows:
+    name: Build Windows EXE
     runs-on: windows-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          pip install pyinstaller
-          pip install click requests colorama "rich>=13.0"
+      - name: Install build dependencies
+        run: pip install pyinstaller click colorama "rich>=13.0"
 
-      - name: Build claisum.exe
-        run: |
-          pyinstaller --onefile --console --name claisum claisum/cli.py
-
-      - name: Build Claisum-Setup.exe
+      - name: Build Claisum_Setup.exe
         run: |
           pyinstaller `
             --onefile `
             --windowed `
-            --name "Claisum-Setup" `
-            --add-data "dist/claisum.exe;." `
+            --name "Claisum_Setup" `
+            --add-data "claisum/discord/claisum_inject.js;." `
             installer-src/installer.py
 
-      - name: Upload artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Claisum-Windows-EXE
-          path: |
-            dist/Claisum-Setup.exe
-            dist/claisum.exe
+          name: Claisum-Windows
+          path: dist/Claisum_Setup.exe
+          retention-days: 7
+
+  build-linux:
+    name: Build Linux binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: pip install pyinstaller
+
+      - name: Build Claisum_Linux_Setup
+        run: |
+          pyinstaller \
+            --onefile \
+            --name "Claisum_Linux_Setup" \
+            --add-data "claisum/discord/claisum_inject.js:." \
+            installer-src/installer_linux.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Claisum-Linux
+          path: dist/Claisum_Linux_Setup
           retention-days: 7
