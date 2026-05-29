@@ -47,7 +47,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install build dependencies
-        run: pip install pyinstaller
+        run: pip install pyinstaller pyinstaller-hooks-contrib
 
       - name: Build Claisum_Linux_Setup
         run: |
@@ -62,4 +62,32 @@ jobs:
         with:
           name: Claisum-Linux
           path: dist/Claisum_Linux_Setup
+          retention-days: 7
+
+  build-macos:
+    name: Build macOS binary
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: pip install pyinstaller pyinstaller-hooks-contrib
+
+      - name: Build Claisum_macOS_Setup
+        run: |
+          pyinstaller \
+            --onefile \
+            --name "Claisum_macOS_Setup" \
+            --add-data "claisum/discord/claisum_inject.js:." \
+            installer-src/installer_macos.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Claisum-macOS
+          path: dist/Claisum_macOS_Setup
           retention-days: 7
