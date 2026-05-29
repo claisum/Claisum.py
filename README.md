@@ -1,3 +1,5 @@
+[![Application](https://img.shields.io/badge/Application-Open-blue?style=for-the-badge)](https://forms.gle/fh86mjy2GWvkf6KG7)
+
 # Claisum ⚡
 
 **Discord customization tool—themes & plugins, built right into Discord.**
