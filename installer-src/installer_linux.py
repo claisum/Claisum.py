@@ -207,7 +207,7 @@ def run_install() -> int:
 {BLD('══════════════════════════════════════')}
 
   Restart Discord to see the {CYN('⚡')} button.
-  Keyboard shortcut: {BLD('Ctrl+Shift+C')}
+  Keyboard shortcut: {BLD('F8')}
 """)
 
     print("  Restart Discord now? [Y/n] ", end="", flush=True)
