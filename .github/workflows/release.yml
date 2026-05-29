@@ -59,3 +59,26 @@ jobs:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: dist/Claisum_Linux_Setup
           overwrite: true
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pyinstaller pyinstaller-hooks-contrib
+      - name: Build Claisum_macOS_Setup
+        run: |
+          pyinstaller --onefile --name "Claisum_macOS_Setup" \
+            --add-data "claisum/discord/claisum_inject.js:." \
+            installer-src/installer_macos.py
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: dist/Claisum_macOS_Setup
+          overwrite: true
