@@ -65,7 +65,7 @@ jobs:
           retention-days: 7
 
   build-macos:
-    name: Build macOS binary
+    name: Build macOS GUI app
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,9 +81,10 @@ jobs:
         run: |
           pyinstaller \
             --onefile \
+            --windowed \
             --name "Claisum_macOS_Setup" \
             --add-data "claisum/discord/claisum_inject.js:." \
-            installer-src/installer_macos.py
+            installer-src/installer_macos_gui.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
