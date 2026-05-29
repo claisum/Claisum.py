@@ -1,6 +1,6 @@
 # Claisum ⚡
 
-**Discord customization tool — themes & plugins, built right into Discord.**
+**Discord customization tool—themes & plugins, built right into Discord.**
 
 Claisum injects a floating **⚡ button** into Discord. Click it (or press **Ctrl+Shift+C**) to open the Claisum panel with Themes and Plugins tabs.
 
@@ -15,7 +15,7 @@ No BetterDiscord. No extra apps. Just one install.
 1. Go to [Releases](https://github.com/claisum/Claisum.py/releases/latest)
 2. Download **`Claisum_Setup.exe`**
 3. Double-click → follow the 4-step wizard
-4. Restart Discord → look for the **⚡** in the bottom-left corner
+4. Restart Discord → look for the **⚡** in the bottom-left corner.
 
 > No Python, Git or Node.js required.
 
@@ -47,13 +47,13 @@ claisum discord plugins available
 
 ## The Claisum Panel
 
-Open with the **⚡** FAB button (bottom-left in Discord) or **Ctrl+Shift+C**.
+Open with the **⚡**FAB button (bottom-left in Discord) or **Ctrl+Shift+C**.
 
 ### Themes tab
 
 | Theme | Description |
 |-------|-------------|
-| Midnight | Deep dark — blue accents |
+| Midnight | Deep dark blue accents |
 | Dracula | Classic Dracula palette |
 | Catppuccin Mocha | Soothing pastel |
 | Nord | Arctic bluish |
@@ -70,7 +70,7 @@ Toggle any theme on/off with one click. Only one theme is active at a time. Pref
 | Compact Mode | Tighter message layout |
 | Square Corners | Removes all border-radius |
 | Big Emoji | Solo emoji enlarged to 48 px |
-| Hide Game Activity | Hides "playing a game" bar |
+| Hide Game Activity | Hides “playing a game” bar |
 | Hide Avatars | Removes all user avatars |
 
 Multiple plugins can be active at once. All saved in Discord's `localStorage`.
@@ -79,13 +79,13 @@ Multiple plugins can be active at once. All saved in Discord's `localStorage`.
 
 ## Keyboard shortcut
 
-**Ctrl+Shift+C** — toggle the Claisum panel from anywhere in Discord.
+**Ctrl+Shift+C—toggle the Claisum panel from anywhere in Discord.
 
 ---
 
 ## Auto-update
 
-Claisum checks GitHub for a new release every time Discord starts (via XHR, non-blocking). If an update is available, a red **!** badge appears on the ⚡ FAB. Run the installer again to update.
+Claisum checks GitHub for a new release every time Discord starts (via XHR, non-blocking). If an update is available, a red **!** The badge appears on the ⚡ FAB. Run the installer again to update.
 
 ---
 
@@ -104,7 +104,7 @@ Claisum checks GitHub for a new release every time Discord starts (via XHR, non-
 ```
 claisum discord inject              Inject Claisum into Discord
 claisum discord remove              Remove Claisum from Discord
-claisum discord status              Check injection status
+Claim Discord status: Check injection status
 claisum discord themes list         List all themes
 claisum discord themes apply <id>   Apply a theme
 claisum discord themes remove       Remove active theme
