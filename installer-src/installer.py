@@ -18,12 +18,10 @@ DIM  = "#80848e"
 ERR  = "#f04747"
 OK   = "#43b581"
 
-# ── Marker written to Discord's index.js ──────────────────────────────────
-MARKER = "claisum_inject"
-INJECT = (
-    "// [Claisum] Do NOT remove — uninstall via Claisum_Setup.exe\n"
-    "try{require('./claisum_inject.js');}catch(e){console.error('[Claisum load]',e);}\n"
-)
+# ── Marker for the resources/app/index.js bootstrap ───────────────────────
+BOOTSTRAP_MARKER = "[Claisum] Bootstrap"
+# Legacy marker (for cleaning up old-style patches from previous versions)
+LEGACY_MARKER = "claisum_inject"
 
 EULA = """\
 END-USER LICENSE AGREEMENT — Claisum v{ver}
@@ -57,22 +55,19 @@ Source code: https://github.com/{repo}
 
 # ══ Helpers ════════════════════════════════════════════════════════════════
 
-def find_all_discord() -> list[str]:
-    """Return ALL discord_desktop_core index.js paths (all versions, all flavours).
-    Injecting into every one ensures Discord updates don't break Claisum."""
+def find_all_discord_resources() -> list[str]:
+    """Return all Discord app-X.X.X/resources/ dirs that contain app.asar."""
     candidates = []
     for name in ("Discord", "discordptb", "discordcanary", "DiscordPTB", "DiscordCanary"):
         base = os.path.join(os.path.expandvars("%LOCALAPPDATA%"), name)
-        pattern = os.path.join(
-            base, "app-*", "modules",
-            "discord_desktop_core-*", "discord_desktop_core", "index.js")
-        candidates.extend(glob.glob(pattern))
+        for res_dir in glob.glob(os.path.join(base, "app-*", "resources")):
+            if os.path.exists(os.path.join(res_dir, "app.asar")):
+                candidates.append(res_dir)
     return sorted(set(candidates))
 
 
-def find_discord() -> str | None:
-    """Return the single newest discord_desktop_core index.js, or None."""
-    c = find_all_discord()
+def find_discord_resources() -> str | None:
+    c = find_all_discord_resources()
     return c[-1] if c else None
 
 
@@ -94,40 +89,86 @@ def kill_discord() -> None:
         pass
 
 
-def get_inject_src() -> str | None:
-    exe_dir = os.path.dirname(sys.executable if getattr(sys, "frozen", False) else __file__)
-    candidates = [
-        os.path.join(exe_dir, "claisum_inject.js"),
-        os.path.normpath(os.path.join(
-            os.path.dirname(__file__), "..", "claisum", "discord", "claisum_inject.js")),
-    ]
-    return next((p for p in candidates if os.path.exists(p)), None)
+def get_bundled_file(name: str) -> str | None:
+    """Find a file bundled into the EXE (sys._MEIPASS) or relative to this script."""
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            p = os.path.join(meipass, name)
+            if os.path.exists(p):
+                return p
+    p = os.path.normpath(os.path.join(
+        os.path.dirname(__file__), "..", "claisum", "discord", name))
+    return p if os.path.exists(p) else None
 
 
-def _strip_claisum(content: str) -> str:
-    """Remove every line written by a previous Claisum install."""
+def is_claisum_installed(res_dir: str) -> bool:
+    idx = os.path.join(res_dir, "app", "index.js")
+    if not os.path.exists(idx):
+        return False
+    try:
+        with open(idx, "r", encoding="utf-8") as f:
+            return BOOTSTRAP_MARKER in f.read()
+    except Exception:
+        return False
+
+
+def do_inject_resources(res_dir: str,
+                        inject_bytes: bytes,
+                        bootstrap_bytes: bytes) -> None:
+    """Create resources/app/ with bootstrap, inject script, and package.json."""
+    app_dir = os.path.join(res_dir, "app")
+    os.makedirs(app_dir, exist_ok=True)
+    with open(os.path.join(app_dir, "claisum_inject.js"), "wb") as f:
+        f.write(inject_bytes)
+    with open(os.path.join(app_dir, "index.js"), "wb") as f:
+        f.write(bootstrap_bytes)
+    with open(os.path.join(app_dir, "package.json"), "w", encoding="utf-8") as f:
+        f.write('{"name":"discord","main":"index.js"}\n')
+
+
+def do_remove_resources(res_dir: str) -> bool:
+    """Remove resources/app/ only if it was created by Claisum."""
+    app_dir = os.path.join(res_dir, "app")
+    if not os.path.exists(app_dir):
+        return False
+    idx = os.path.join(app_dir, "index.js")
+    if os.path.exists(idx):
+        try:
+            with open(idx, "r", encoding="utf-8") as f:
+                if BOOTSTRAP_MARKER not in f.read():
+                    return False   # not ours — leave it alone
+        except Exception:
+            return False
+    shutil.rmtree(app_dir, ignore_errors=True)
+    return True
+
+
+def _strip_legacy(content: str) -> str:
     return "".join(
         line for line in content.splitlines(keepends=True)
-        if MARKER not in line and "[Claisum]" not in line
+        if LEGACY_MARKER not in line and "[Claisum]" not in line
     ).lstrip("\n")
 
 
-def do_inject(idx: str) -> None:
-    with open(idx, "r", encoding="utf-8") as f:
-        raw = f.read()
-    cleaned = _strip_claisum(raw)        # idempotent — repair works too
-    with open(idx, "w", encoding="utf-8") as f:
-        f.write(INJECT + cleaned)
-
-
-def do_remove(idx: str) -> bool:
-    with open(idx, "r", encoding="utf-8") as f:
-        raw = f.read()
-    if MARKER not in raw and "[Claisum]" not in raw:
-        return False
-    with open(idx, "w", encoding="utf-8") as f:
-        f.write(_strip_claisum(raw))
-    return True
+def clean_legacy_core(res_dir: str) -> None:
+    """Remove old-style discord_desktop_core patches from previous Claisum versions."""
+    parent = os.path.dirname(res_dir)   # app-X.X.X directory
+    for idx in glob.glob(os.path.join(
+        parent, "modules", "discord_desktop_core-*",
+        "discord_desktop_core", "index.js"
+    )):
+        try:
+            with open(idx, "r", encoding="utf-8") as f:
+                raw = f.read()
+            if LEGACY_MARKER in raw or "[Claisum]" in raw:
+                with open(idx, "w", encoding="utf-8") as f:
+                    f.write(_strip_legacy(raw))
+            legacy_js = os.path.join(os.path.dirname(idx), "claisum_inject.js")
+            if os.path.exists(legacy_js):
+                os.remove(legacy_js)
+        except Exception:
+            pass
 
 
 # ══ GUI ════════════════════════════════════════════════════════════════════
@@ -343,13 +384,8 @@ class App(tk.Tk):
     def _render_action(self) -> None:
         # Auto-detect current state to pre-select sensible default
         try:
-            idx = find_discord()
-            if idx:
-                with open(idx, "r", encoding="utf-8") as f:
-                    installed = MARKER in f.read()
-                default = "repair" if installed else "install"
-            else:
-                default = "install"
+            res = find_discord_resources()
+            default = "repair" if (res and is_claisum_installed(res)) else "install"
         except Exception:
             default = "install"
         self.action.set(default)
@@ -472,60 +508,74 @@ class App(tk.Tk):
 
     def _do_install(self) -> None:
         if discord_running():
-            self._upd("Closing Discord…", 0.05)
+            self._upd("Discord schließen…", 0.05)
             kill_discord()
             import time; time.sleep(1.5)
 
-        self._upd("Locating Discord installations…", 0.15)
-        indices = find_all_discord()
-        if not indices:
+        self._upd("Discord-Installationen suchen…", 0.15)
+        res_dirs = find_all_discord_resources()
+        if not res_dirs:
             raise RuntimeError(
-                "Discord not found on this PC.\n\n"
-                "Please install Discord first:\n"
+                "Discord nicht gefunden.\n\n"
+                "Bitte zuerst Discord installieren:\n"
                 "https://discord.com/download")
-        self._upd(f"Found {len(indices)} Discord installation(s).", 0.22)
+        self._upd(f"{len(res_dirs)} Discord-Installation(en) gefunden.", 0.22)
 
-        self._upd("Downloading Claisum inject script…", 0.35)
-        src = get_inject_src()
-        js_content = None
-        if not src:
+        self._upd("Claisum-Dateien laden…", 0.30)
+
+        # Load claisum_inject.js
+        inject_src = get_bundled_file("claisum_inject.js")
+        if inject_src:
+            with open(inject_src, "rb") as f:
+                inject_bytes = f.read()
+        else:
             try:
-                import io
                 with urllib.request.urlopen(
                     f"https://raw.githubusercontent.com/{REPO}"
                     "/main/claisum/discord/claisum_inject.js"
                 ) as r:
-                    js_content = r.read()
+                    inject_bytes = r.read()
             except Exception as e:
                 raise RuntimeError(
-                    f"Could not download claisum_inject.js: {e}\n"
-                    "Check your internet connection.") from e
+                    f"Konnte claisum_inject.js nicht laden: {e}\n"
+                    "Internetverbindung prüfen.") from e
 
-        step = 0.60 / max(len(indices), 1)
-        for i, idx in enumerate(indices):
-            self._upd(f"Patching [{i+1}/{len(indices)}]…", 0.40 + i * step)
-            core = os.path.dirname(idx)
-            dest = os.path.join(core, "claisum_inject.js")
-            if src:
-                shutil.copy2(src, dest)
-            else:
-                with open(dest, "wb") as f:
-                    f.write(js_content)
-            do_inject(idx)
+        # Load claisum_bootstrap.js
+        bootstrap_src = get_bundled_file("claisum_bootstrap.js")
+        if bootstrap_src:
+            with open(bootstrap_src, "rb") as f:
+                bootstrap_bytes = f.read()
+        else:
+            try:
+                with urllib.request.urlopen(
+                    f"https://raw.githubusercontent.com/{REPO}"
+                    "/main/claisum/discord/claisum_bootstrap.js"
+                ) as r:
+                    bootstrap_bytes = r.read()
+            except Exception as e:
+                raise RuntimeError(
+                    f"Konnte claisum_bootstrap.js nicht laden: {e}\n"
+                    "Internetverbindung prüfen.") from e
 
-        self._upd("Verifying patches…", 0.95)
-        for idx in indices:
-            with open(idx, "r", encoding="utf-8") as f:
-                if MARKER not in f.read():
-                    raise RuntimeError(f"Patch verification failed:\n{idx}")
+        step = 0.55 / max(len(res_dirs), 1)
+        for i, res_dir in enumerate(res_dirs):
+            self._upd(f"Installiere [{i+1}/{len(res_dirs)}]…", 0.40 + i * step)
+            clean_legacy_core(res_dir)           # remove old-style patches
+            do_inject_resources(res_dir, inject_bytes, bootstrap_bytes)
 
-        self._upd("Done!", 1.0)
+        self._upd("Verifiziere…", 0.95)
+        for res_dir in res_dirs:
+            if not is_claisum_installed(res_dir):
+                raise RuntimeError(
+                    f"Installation fehlgeschlagen:\n{res_dir}/app/index.js")
+
+        self._upd("Fertig!", 1.0)
         self.after(500, lambda: self._finish(
             True,
-            "Claisum installed successfully!\n\n"
-            "\u26a1 Click the glowing ⚡ button in the bottom-left of Discord\n"
-            "   to open the Claisum panel — or press F8.\n\n"
-            "\U0001f504 Claisum updates automatically every time Discord starts."))
+            "Claisum erfolgreich installiert!\n\n"
+            "\u26a1 Klicke den leuchtenden \u26a1 Button unten links in Discord\n"
+            "   oder drücke F8 um das Panel zu öffnen.\n\n"
+            "\U0001f504 Claisum updatet sich automatisch beim Discord-Start."))
 
     def _do_uninstall(self) -> None:
         if discord_running():
@@ -533,33 +583,29 @@ class App(tk.Tk):
             kill_discord()
             import time; time.sleep(1.5)
 
-        self._upd("Locating Discord installations…", 0.20)
-        indices = find_all_discord()
-        if not indices:
-            raise RuntimeError("Discord installation not found.")
+        self._upd("Discord-Installationen suchen…", 0.20)
+        res_dirs = find_all_discord_resources()
+        if not res_dirs:
+            raise RuntimeError("Discord-Installation nicht gefunden.")
 
-        step = 0.70 / max(len(indices), 1)
-        for i, idx in enumerate(indices):
-            self._upd(f"Removing [{i+1}/{len(indices)}]…", 0.25 + i * step)
-            do_remove(idx)
-            dest = os.path.join(os.path.dirname(idx), "claisum_inject.js")
-            try:
-                os.remove(dest)
-            except FileNotFoundError:
-                pass
+        step = 0.65 / max(len(res_dirs), 1)
+        for i, res_dir in enumerate(res_dirs):
+            self._upd(f"Entferne [{i+1}/{len(res_dirs)}]…", 0.25 + i * step)
+            do_remove_resources(res_dir)
+            clean_legacy_core(res_dir)
 
-        self._upd("Verifying removal…", 0.95)
-        for idx in indices:
-            with open(idx, "r", encoding="utf-8") as f:
-                if MARKER in f.read():
-                    raise RuntimeError(f"Removal failed — traces remain:\n{idx}")
+        self._upd("Verifiziere Entfernung…", 0.95)
+        for res_dir in res_dirs:
+            if is_claisum_installed(res_dir):
+                raise RuntimeError(
+                    f"Entfernung fehlgeschlagen — Reste gefunden:\n{res_dir}")
 
-        self._upd("Done!", 1.0)
+        self._upd("Fertig!", 1.0)
         self.after(500, lambda: self._finish(
             True,
-            "Claisum removed successfully!\n\n"
-            "Discord has been fully restored to its original state.\n"
-            "Start Discord to confirm it opens normally."))
+            "Claisum erfolgreich entfernt!\n\n"
+            "Discord wurde vollständig wiederhergestellt.\n"
+            "Starte Discord um zu bestätigen, dass es normal öffnet."))
 
     def _finish(self, ok: bool, msg: str, detail: str = "") -> None:
         self._done_ok  = ok
