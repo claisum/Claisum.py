@@ -393,8 +393,54 @@
     document.body.appendChild(fab);
     document.body.appendChild(panel);
 
-    // ── Auto-update check (non-blocking) ─────────────────────────────────
-    // Uses XHR so it works without Node.js (renderer context)
+    // ── Discord update detector ───────────────────────────────────────────
+    // Reads the Discord app version from the document URL (e.g. app-1.0.9021)
+    // and compares it to the version stored on last successful inject.
+    // If they differ, Discord has updated and Claisum needs to be re-run.
+    setTimeout(function() {
+      try {
+        var href = (document.location && document.location.href) || '';
+        var match = href.match(/app-(\d+\.\d+\.\d+)/);
+        var discordVer = match ? match[1] : null;
+        var storedVer  = null;
+        try { storedVer = localStorage.getItem('cl_discord_ver'); } catch(e){}
+
+        if (discordVer) {
+          if (storedVer && storedVer !== discordVer) {
+            // Discord updated — injection might be in the old folder
+            var badge = mk('span',
+              'position:absolute;top:-5px;right:-5px;' +
+              'background:#f9e2af;color:#1e1e2e;border-radius:50%;' +
+              'width:18px;height:18px;font-size:12px;font-weight:900;' +
+              'display:flex;align-items:center;justify-content:center;' +
+              'pointer-events:none;box-shadow:0 1px 4px #0006;',
+              {textContent:'\u26a0', id:'cl-repair-badge'});
+            if (!document.getElementById('cl-repair-badge')) {
+              fab.appendChild(badge);
+            }
+            fab.title =
+              'Discord updated (' + storedVer + ' \u2192 ' + discordVer + ')!\n' +
+              'Re-run Claisum installer (Repair) to stay injected.';
+            // Also show a brief toast
+            var toast = mk('div',
+              'position:fixed;bottom:80px;left:16px;' +
+              'background:#313244;color:#f9e2af;border-radius:10px;' +
+              'padding:10px 16px;font-size:12px;font-weight:600;' +
+              'box-shadow:0 4px 16px #0007;z-index:999997;' +
+              'max-width:280px;line-height:1.5;' +
+              'border:1px solid #f9e2af44;',
+              {textContent:
+                '\u26a0\ufe0f Discord updated to ' + discordVer + '.\n' +
+                'Re-run the Claisum installer \u2192 Repair to restore the panel.'});
+            document.body.appendChild(toast);
+            setTimeout(function(){ try{ toast.remove(); }catch(e){} }, 9000);
+          }
+          try { localStorage.setItem('cl_discord_ver', discordVer); } catch(e){}
+        }
+      } catch(e){}
+    }, 2500);
+
+    // ── Claisum update check (non-blocking) ──────────────────────────────
     setTimeout(function() {
       try {
         var VERSION = '1.0.0.1';
@@ -408,7 +454,6 @@
           try {
             var tag = (JSON.parse(xhr.responseText).tag_name||'').replace(/^v/,'');
             if (tag && tag!==VERSION) {
-              // Show unobtrusive badge on FAB
               var badge = mk('span',
                 'position:absolute;top:-4px;right:-4px;' +
                 'background:#f04747;color:#fff;border-radius:50%;' +
@@ -416,9 +461,10 @@
                 'display:flex;align-items:center;justify-content:center;' +
                 'pointer-events:none;',
                 {textContent:'!'});
-              fab.style.position='fixed';
-              fab.appendChild(badge);
-              fab.title='Claisum update available: v'+tag+' — visit github.com/'+REPO;
+              if (!document.getElementById('cl-repair-badge')) {
+                fab.appendChild(badge);
+              }
+              fab.title='Claisum v'+tag+' available \u2014 github.com/'+REPO+'/releases';
             }
           } catch(e){}
         };
