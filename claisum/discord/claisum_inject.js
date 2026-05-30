@@ -1,4 +1,4 @@
-// Claisum — Renderer UI v8
+// Claisum — Renderer UI v9
 // Loaded as an Electron preload via resources/app/index.js (claisum_bootstrap.js).
 // In preload context: window + document are available, DOM manipulation works.
 (function () {
@@ -17,6 +17,9 @@
 
   // ── Palette ───────────────────────────────────────────────────────────────
   var C = { ACC:'#7c6af7', ACC2:'#6254d6', BG:'#1e1e2e', BG2:'#181825', BG3:'#313244', TXT:'#cdd6f4', DIM:'#6c7086' };
+
+  // ── Status colours ────────────────────────────────────────────────────────
+  var STATUS = { GREEN:'#43b581', RED:'#f04747', BLUE:'#5865F2' };
 
   // ── Data ─────────────────────────────────────────────────────────────────
   var THEMES = [
@@ -160,6 +163,22 @@
     fab.onmouseenter=function(){fab.style.transform='scale(1.14)';}; fab.onmouseleave=function(){fab.style.transform='scale(1)';};
     fab.onclick=toggle_;
 
+    // ── Status dot (bottom-right) ─────────────────────────────────────────
+    // Green = Claisum active | Red = error/inactive | Blue = update or repair needed
+    var statusDot = mk('div',
+      'position:fixed;bottom:16px;right:16px;width:12px;height:12px;' +
+      'border-radius:50%;background:'+STATUS.GREEN+';z-index:2147483647;' +
+      'box-shadow:0 0 0 2px #ffffff22,0 0 8px '+STATUS.GREEN+'88;' +
+      'pointer-events:auto;cursor:default;transition:background .4s,box-shadow .4s;');
+    statusDot.title = 'Claisum aktiv';
+
+    function setStatus(color, title) {
+      var col = STATUS[color.toUpperCase()] || color;
+      statusDot.style.background = col;
+      statusDot.style.boxShadow = '0 0 0 2px #ffffff22,0 0 8px ' + col + '88';
+      if (title) statusDot.title = title;
+    }
+
     function open_(){ panel.style.display='flex'; switchTab(state.tab||'themes'); fab.style.background=C.ACC2; }
     function close_(){ panel.style.display='none'; fab.style.background=C.ACC; }
     function toggle_(){ if(panel.style.display==='flex') close_(); else open_(); }
@@ -171,11 +190,13 @@
     window.addEventListener('keydown',_f8,{capture:true});
 
     document.body.appendChild(fab);
+    document.body.appendChild(statusDot);
     document.body.appendChild(panel);
 
     // Re-inject if Discord's SPA removes our elements
     var _obs=new MutationObserver(function(){
       if(!document.body.contains(fab)) document.body.appendChild(fab);
+      if(!document.body.contains(statusDot)) document.body.appendChild(statusDot);
       if(!document.body.contains(panel)) document.body.appendChild(panel);
     });
     _obs.observe(document.body,{childList:true,subtree:false});
@@ -190,10 +211,11 @@
             var b=mk('span','position:absolute;top:-5px;right:-5px;background:#f9e2af;color:#1e1e2e;border-radius:50%;width:18px;height:18px;font-size:12px;display:flex;align-items:center;justify-content:center;pointer-events:none;',{textContent:'\u26a0'});
             fab.style.position='fixed'; fab.appendChild(b);
             fab.title='Discord updated ('+stored+' \u2192 '+cur+') \u2014 re-run Claisum installer \u2192 Repair';
+            setStatus('blue', 'Discord updated \u2014 Claisum Installer \u2192 Repair ausführen');
           }
           save('cl_discord_ver',cur);
         }
-      }catch(e){}
+      }catch(e){ setStatus('red', 'Claisum: Fehler beim Versionsprüfen'); }
     },3000);
 
     // ── Claisum version check ─────────────────────────────────────────────
@@ -209,11 +231,13 @@
             if(tag&&tag!==VERSION){
               var b2=mk('span','position:absolute;top:-4px;right:-4px;background:#f04747;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none;',{textContent:'!'});
               fab.appendChild(b2); fab.title='Claisum v'+tag+' verfügbar!';
+              setStatus('blue', 'Claisum Update verfügbar: v'+tag+' \u2014 Installer \u2192 Reinstall');
             }
           }catch(e){}
         };
+        xhr.onerror=function(){ setStatus('red','Claisum: Netzwerkfehler beim Update-Check'); };
         xhr.timeout=8000; xhr.send();
-      }catch(e){}
+      }catch(e){ setStatus('red','Claisum: Fehler beim Update-Check'); }
     },6000);
   }
 
