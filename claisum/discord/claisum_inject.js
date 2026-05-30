@@ -378,11 +378,16 @@
     }, {passive:true});
 
     // Keyboard shortcut: F8
-    document.addEventListener('keydown', function(e) {
+    // Use capture:true so we intercept before Discord's own keybind system
+    function _f8handler(e) {
       if (e.key === 'F8') {
-        e.preventDefault(); togglePanel();
+        e.preventDefault();
+        e.stopPropagation();
+        togglePanel();
       }
-    });
+    }
+    document.addEventListener('keydown', _f8handler, {capture: true});
+    window.addEventListener('keydown', _f8handler, {capture: true});
 
     // ── Mount ────────────────────────────────────────────────────────────
     document.body.appendChild(fab);
