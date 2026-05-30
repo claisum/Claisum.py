@@ -248,11 +248,31 @@ def _unregister_startup() -> None:
     except Exception:
         pass
 
-    # Remove the stable %APPDATA%\Claisum\ copy
+    # Remove all Claisum folders (%APPDATA% and %LOCALAPPDATA%) and PATH entries
+    for env_var in ("%APPDATA%", "%LOCALAPPDATA%"):
+        try:
+            d = os.path.join(os.path.expandvars(env_var), "Claisum")
+            if os.path.isdir(d):
+                shutil.rmtree(d, ignore_errors=True)
+        except Exception:
+            pass
+
+    # Remove any Claisum directory from the user PATH environment variable
     try:
-        appdata_dir = os.path.join(os.path.expandvars("%APPDATA%"), "Claisum")
-        if os.path.isdir(appdata_dir):
-            shutil.rmtree(appdata_dir, ignore_errors=True)
+        import winreg
+        env_key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Environment",
+            0, winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE)
+        try:
+            raw_path, _ = winreg.QueryValueEx(env_key, "Path")
+            parts = [p for p in raw_path.split(";")
+                     if "claisum" not in p.lower()]
+            winreg.SetValueEx(env_key, "Path", 0, winreg.REG_EXPAND_SZ,
+                              ";".join(parts))
+        except FileNotFoundError:
+            pass
+        winreg.CloseKey(env_key)
     except Exception:
         pass
 
