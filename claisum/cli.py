@@ -51,7 +51,11 @@ def inject():
 
 @main.command("remove")
 def remove():
-    """Remove Claisum from Discord (restores Discord to default)."""
+    """Remove Claisum from Discord (restores Discord to default).
+
+    This only removes Claisum from Discord files.
+    To also uninstall the claisum command itself, run: claisum uninstall
+    """
     print_banner()
     path = find_discord_path()
     if not path:
@@ -61,8 +65,74 @@ def remove():
         if remove_from_discord(path):
             console.print("[green]✓ Claisum removed. Discord restored to default.[/green]")
             console.print("[dim]Restart Discord to apply.[/dim]")
+            console.print(
+                "\n[dim]Note: the [bold]claisum[/bold] command is still installed.\n"
+                "To fully remove it run: [bold]claisum uninstall[/bold][/dim]"
+            )
         else:
             console.print("[red]Removal failed.[/red]")
+
+
+@main.command("uninstall")
+def uninstall():
+    """Fully remove Claisum from Discord AND uninstall this package.
+
+    After this command the 'claisum' command will no longer be available.
+    """
+    print_banner()
+
+    # Step 1 — remove injection from Discord
+    path = find_discord_path()
+    if path:
+        console.print("[dim]Removing Claisum from Discord...[/dim]")
+        if remove_from_discord(path):
+            console.print("[green]✓ Claisum removed from Discord.[/green]")
+        else:
+            console.print("[yellow]⚠ Could not fully remove from Discord files.[/yellow]")
+    else:
+        console.print("[dim]Discord not found (or already clean).[/dim]")
+
+    # Step 2 — uninstall the pip package
+    # We must spawn a *new* process so the currently-running claisum script
+    # is not locked when pip tries to delete it.
+    if not click.confirm(
+        "\nThis will uninstall the [bold]claisum[/bold] command. Continue?"
+    ):
+        console.print("[dim]Cancelled. Discord injection was still removed.[/dim]")
+        return
+
+    console.print("[dim]Uninstalling package...[/dim]")
+
+    # Try python -m pip first, then pip/pip3 directly
+    import shutil as _shutil
+    candidates = [
+        [sys.executable, "-m", "pip", "uninstall", "claisum", "-y"],
+    ]
+    for pip_name in ("pip", "pip3"):
+        p = _shutil.which(pip_name)
+        if p:
+            candidates.append([p, "uninstall", "claisum", "-y"])
+
+    uninstalled = False
+    for cmd in candidates:
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if r.returncode == 0:
+                uninstalled = True
+                break
+        except Exception:
+            pass
+
+    if uninstalled:
+        console.print(
+            "[green]✓ claisum package uninstalled.[/green]\n"
+            "[dim]The 'claisum' command is no longer available.[/dim]"
+        )
+    else:
+        console.print(
+            "[yellow]⚠ Could not auto-uninstall via pip.[/yellow]\n"
+            "[dim]Run manually: [bold]pip uninstall claisum -y[/bold][/dim]"
+        )
 
 
 @main.command("status")
