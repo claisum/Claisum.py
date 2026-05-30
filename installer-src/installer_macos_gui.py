@@ -55,7 +55,9 @@ Source code: https://github.com/{repo}
 
 # ══ Helpers ════════════════════════════════════════════════════════════════
 
-def find_discord() -> str | None:
+def find_all_discord() -> list[str]:
+    """Return ALL discord_desktop_core index.js paths — all versions & flavours.
+    Patching every one means Discord updates don't silently break Claisum."""
     lib = os.path.expanduser("~/Library/Application Support")
     candidates = []
     for name in ("discord", "discordptb", "discordcanary", "discorddev"):
@@ -66,7 +68,12 @@ def find_discord() -> str | None:
             "modules/discord_desktop_core-*/discord_desktop_core/index.js",
         ):
             candidates.extend(glob.glob(os.path.join(base, pat)))
-    return sorted(candidates, reverse=True)[0] if candidates else None
+    return sorted(set(candidates))
+
+
+def find_discord() -> str | None:
+    c = find_all_discord()
+    return c[-1] if c else None
 
 
 def discord_running() -> bool:
@@ -430,49 +437,75 @@ class App(tk.Tk):
             self._upd("Closing Discord…", 0.05)
             kill_discord()
 
-        self._upd("Locating Discord installation…", 0.20)
-        idx = find_discord()
-        if not idx:
+        self._upd("Locating Discord installations…", 0.15)
+        indices = find_all_discord()
+        if not indices:
             raise RuntimeError(
                 "Discord not found.\n\n"
                 "Install Discord from https://discord.com/download\n"
                 "and launch it at least once, then try again.")
+        self._upd(f"Found {len(indices)} Discord installation(s).", 0.22)
 
-        self._upd("Downloading Claisum inject script…", 0.45)
-        do_inject(idx)
+        self._upd("Downloading Claisum inject script…", 0.35)
+        src = get_inject_src()
+        js_content: bytes | None = None
+        if not src:
+            urllib_req = urllib.request.urlopen(
+                f"https://raw.githubusercontent.com/{REPO}"
+                "/main/claisum/discord/claisum_inject.js")
+            js_content = urllib_req.read()
 
-        self._upd("Verifying patch…", 0.92)
-        with open(idx, "r", encoding="utf-8") as f:
-            if MARKER not in f.read():
-                raise RuntimeError("Patch verification failed — index.js was not modified.")
+        step = 0.55 / max(len(indices), 1)
+        for i, idx in enumerate(indices):
+            self._upd(f"Patching [{i+1}/{len(indices)}]…", 0.40 + i * step)
+            core = os.path.dirname(idx)
+            dest = os.path.join(core, "claisum_inject.js")
+            if src:
+                shutil.copy2(src, dest)
+            else:
+                with open(dest, "wb") as f:
+                    f.write(js_content)
+            inject_into(idx)
+
+        self._upd("Verifying patches…", 0.95)
+        for idx in indices:
+            with open(idx, "r", encoding="utf-8") as f:
+                if MARKER not in f.read():
+                    raise RuntimeError(f"Patch verification failed:\n{idx}")
 
         self._upd("Done!", 1.0)
         self.after(500, lambda: self._finish(
             True,
             "Claisum installed successfully!\n\n"
-            "⚡ You will see a glowing button in the bottom-left\n"
-            "   corner of Discord after you restart it.\n\n"
-            "🔁 Claisum checks for updates automatically every\n"
-            "   time Discord starts — no action needed.\n\n"
-            "   Press F8 inside Discord to open the panel."))
+            "⚡ Click the glowing ⚡ button in the bottom-left of Discord\n"
+            "   to open the Claisum panel — or press F8.\n\n"
+            "🔁 Claisum updates automatically every time Discord starts."))
 
     def _do_uninstall(self) -> None:
         if discord_running():
             self._upd("Closing Discord…", 0.08)
             kill_discord()
 
-        self._upd("Locating Discord installation…", 0.30)
-        idx = find_discord()
-        if not idx:
+        self._upd("Locating Discord installations…", 0.20)
+        indices = find_all_discord()
+        if not indices:
             raise RuntimeError("Discord installation not found.")
 
-        self._upd("Removing Claisum from Discord core…", 0.60)
-        do_remove(idx)
+        step = 0.70 / max(len(indices), 1)
+        for i, idx in enumerate(indices):
+            self._upd(f"Removing [{i+1}/{len(indices)}]…", 0.25 + i * step)
+            do_remove(idx)
+            dest = os.path.join(os.path.dirname(idx), "claisum_inject.js")
+            try:
+                os.remove(dest)
+            except FileNotFoundError:
+                pass
 
-        self._upd("Verifying removal…", 0.93)
-        with open(idx, "r", encoding="utf-8") as f:
-            if MARKER in f.read():
-                raise RuntimeError("Removal verification failed — traces remain.")
+        self._upd("Verifying removal…", 0.95)
+        for idx in indices:
+            with open(idx, "r", encoding="utf-8") as f:
+                if MARKER in f.read():
+                    raise RuntimeError(f"Removal failed — traces remain:\n{idx}")
 
         self._upd("Done!", 1.0)
         self.after(500, lambda: self._finish(
