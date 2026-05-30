@@ -23,6 +23,10 @@ BOOTSTRAP_MARKER = "[Claisum] Bootstrap"
 # Legacy marker (for cleaning up old-style patches from previous versions)
 LEGACY_MARKER = "claisum_inject"
 
+# Registry key for Windows auto-start
+STARTUP_REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
+STARTUP_REG_NAME = "Claisum"
+
 EULA = """\
 END-USER LICENSE AGREEMENT — Claisum v{ver}
 
@@ -169,6 +173,76 @@ def clean_legacy_core(res_dir: str) -> None:
                 os.remove(legacy_js)
         except Exception:
             pass
+
+
+def _find_python() -> str | None:
+    """Find the real Python interpreter (not the frozen EXE)."""
+    # If running as a normal script, sys.executable IS Python
+    if not getattr(sys, "frozen", False):
+        return sys.executable
+    # Frozen EXE: search PATH for python / python3 / py
+    for name in ("python", "python3", "py"):
+        p = shutil.which(name)
+        if p:
+            return p
+    return None
+
+
+def _register_startup() -> None:
+    """Add 'claisum inject' to Windows user startup (HKCU Run key).
+
+    This ensures Claisum re-injects itself whenever Discord auto-updates
+    and creates a new app-X.X.X folder, wiping the previous injection.
+    Runs silently (pythonw) at Windows login, re-injects if needed.
+    """
+    try:
+        import winreg
+        python_exe = _find_python()
+        if not python_exe:
+            return
+        # Use pythonw to run without a console window
+        pythonw = python_exe.replace("python.exe", "pythonw.exe")
+        if not os.path.exists(pythonw):
+            pythonw = python_exe
+        cmd = f'"{pythonw}" -m claisum inject'
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            STARTUP_REG_KEY,
+            0, winreg.KEY_SET_VALUE)
+        winreg.SetValueEx(key, STARTUP_REG_NAME, 0, winreg.REG_SZ, cmd)
+        winreg.CloseKey(key)
+    except Exception:
+        pass  # Non-fatal — user can still run installer manually after update
+
+
+def _unregister_startup() -> None:
+    """Remove the Claisum Windows startup registry entry."""
+    try:
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            STARTUP_REG_KEY,
+            0, winreg.KEY_SET_VALUE)
+        try:
+            winreg.DeleteValue(key, STARTUP_REG_NAME)
+        except FileNotFoundError:
+            pass
+        winreg.CloseKey(key)
+    except Exception:
+        pass
+
+
+def _pip_uninstall_claisum() -> None:
+    """Uninstall the claisum Python package via pip (best-effort)."""
+    python_exe = _find_python()
+    if not python_exe:
+        return
+    try:
+        subprocess.run(
+            [python_exe, "-m", "pip", "uninstall", "claisum", "-y"],
+            capture_output=True, timeout=30)
+    except Exception:
+        pass  # Non-fatal — pip may not be available in all setups
 
 
 # ══ GUI ════════════════════════════════════════════════════════════════════
@@ -383,14 +457,37 @@ class App(tk.Tk):
 
     def _render_action(self) -> None:
         # Auto-detect current state to pre-select sensible default
+        currently_installed = False
         try:
             res = find_discord_resources()
-            default = "repair" if (res and is_claisum_installed(res)) else "install"
+            currently_installed = bool(res and is_claisum_installed(res))
+            default = "repair" if currently_installed else "install"
         except Exception:
             default = "install"
         self.action.set(default)
 
         self._section_hdr("ACT", "Choose an Action")
+
+        # ── Status badge: show clearly if Claisum is installed or not ──────
+        status_bar = tk.Frame(self.body, bg=BG3)
+        status_bar.pack(fill="x", padx=24, pady=(0, 8))
+        if currently_installed:
+            status_icon  = " ✓ "
+            status_text  = "Claisum is currently installed and active."
+            icon_bg      = "#2d4a3a"
+            icon_fg      = OK
+            text_fg      = "#7ee8a2"
+        else:
+            status_icon  = " ✗ "
+            status_text  = "Claisum is not installed."
+            icon_bg      = "#3d2929"
+            icon_fg      = ERR
+            text_fg      = "#c07070"
+        tk.Label(status_bar, text=status_icon, bg=icon_bg, fg=icon_fg,
+                 font=("Courier", 10, "bold")).pack(side="left",
+                                                    padx=(10, 8), pady=7)
+        tk.Label(status_bar, text=status_text, bg=BG3, fg=text_fg,
+                 font=("Segoe UI", 9)).pack(side="left", pady=7)
 
         self._sel_rows = {}
         actions = [
@@ -557,17 +654,22 @@ class App(tk.Tk):
                     f"Konnte claisum_bootstrap.js nicht laden: {e}\n"
                     "Internetverbindung prüfen.") from e
 
-        step = 0.55 / max(len(res_dirs), 1)
+        step = 0.50 / max(len(res_dirs), 1)
         for i, res_dir in enumerate(res_dirs):
             self._upd(f"Installiere [{i+1}/{len(res_dirs)}]…", 0.40 + i * step)
             clean_legacy_core(res_dir)           # remove old-style patches
             do_inject_resources(res_dir, inject_bytes, bootstrap_bytes)
 
-        self._upd("Verifiziere…", 0.95)
+        self._upd("Verifiziere…", 0.90)
         for res_dir in res_dirs:
             if not is_claisum_installed(res_dir):
                 raise RuntimeError(
                     f"Installation fehlgeschlagen:\n{res_dir}/app/index.js")
+
+        # Register Windows startup entry so Claisum re-injects itself
+        # automatically after Discord updates to a new app-X.X.X folder.
+        self._upd("Autostart registrieren…", 0.95)
+        _register_startup()
 
         self._upd("Fertig!", 1.0)
         self.after(500, lambda: self._finish(
@@ -575,7 +677,8 @@ class App(tk.Tk):
             "Claisum erfolgreich installiert!\n\n"
             "\u26a1 Klicke den leuchtenden \u26a1 Button unten links in Discord\n"
             "   oder drücke F8 um das Panel zu öffnen.\n\n"
-            "\U0001f504 Claisum updatet sich automatisch beim Discord-Start."))
+            "\U0001f504 Claisum ist immer aktiv wenn Discord offen ist und\n"
+            "   injiziert sich nach Discord-Updates automatisch neu."))
 
     def _do_uninstall(self) -> None:
         if discord_running():
@@ -588,23 +691,32 @@ class App(tk.Tk):
         if not res_dirs:
             raise RuntimeError("Discord-Installation nicht gefunden.")
 
-        step = 0.65 / max(len(res_dirs), 1)
+        step = 0.50 / max(len(res_dirs), 1)
         for i, res_dir in enumerate(res_dirs):
             self._upd(f"Entferne [{i+1}/{len(res_dirs)}]…", 0.25 + i * step)
             do_remove_resources(res_dir)
             clean_legacy_core(res_dir)
 
-        self._upd("Verifiziere Entfernung…", 0.95)
+        self._upd("Verifiziere Entfernung…", 0.80)
         for res_dir in res_dirs:
             if is_claisum_installed(res_dir):
                 raise RuntimeError(
                     f"Entfernung fehlgeschlagen — Reste gefunden:\n{res_dir}")
 
+        # Remove Windows startup entry
+        self._upd("Autostart-Eintrag entfernen…", 0.87)
+        _unregister_startup()
+
+        # Uninstall the Python package so 'claisum --help' stops working
+        self._upd("Python-Paket deinstallieren…", 0.93)
+        _pip_uninstall_claisum()
+
         self._upd("Fertig!", 1.0)
         self.after(500, lambda: self._finish(
             True,
-            "Claisum erfolgreich entfernt!\n\n"
-            "Discord wurde vollständig wiederhergestellt.\n"
+            "Claisum vollständig entfernt!\n\n"
+            "Discord wurde wiederhergestellt.\n"
+            "Das 'claisum' Kommando wurde ebenfalls entfernt.\n"
             "Starte Discord um zu bestätigen, dass es normal öffnet."))
 
     def _finish(self, ok: bool, msg: str, detail: str = "") -> None:
@@ -658,7 +770,11 @@ class App(tk.Tk):
                      bg=ACC2, fg="#fff",
                      font=("Courier", 8, "bold")).pack(
                 side="left", padx=(10, 8), pady=8)
-            tk.Label(tip, text="Click the ⚡ button (bottom-left in Discord) or press F8 to open the panel.",
+            if self.action.get() in ("install", "repair"):
+                tip_text = "Click the ⚡ button (bottom-left in Discord) or press F8 to open the panel."
+            else:
+                tip_text = "Run this installer again anytime to re-install Claisum."
+            tk.Label(tip, text=tip_text,
                      bg=BG3, fg=DIM, font=("Segoe UI", 9)).pack(
                 side="left", pady=8)
 
