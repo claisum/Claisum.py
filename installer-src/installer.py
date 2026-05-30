@@ -188,23 +188,40 @@ def _find_python() -> str | None:
     return None
 
 
-def _register_startup() -> None:
-    """Add 'claisum inject' to Windows user startup (HKCU Run key).
+def _claisum_appdata_exe() -> str:
+    """Return the stable EXE path in %APPDATA%\\Claisum\\Claisum_Setup.exe."""
+    return os.path.join(os.path.expandvars("%APPDATA%"), "Claisum", "Claisum_Setup.exe")
 
-    This ensures Claisum re-injects itself whenever Discord auto-updates
-    and creates a new app-X.X.X folder, wiping the previous injection.
-    Runs silently (pythonw) at Windows login, re-injects if needed.
+
+def _register_startup() -> None:
+    """Copy this EXE to %APPDATA%\\Claisum\\ and register it in HKCU Run.
+
+    Using a stable copy in %APPDATA% means the startup entry always works
+    regardless of where the user originally ran the installer from.
+    The EXE is run with /inject so it silently re-injects Discord on login.
     """
     try:
         import winreg
-        python_exe = _find_python()
-        if not python_exe:
-            return
-        # Use pythonw to run without a console window
-        pythonw = python_exe.replace("python.exe", "pythonw.exe")
-        if not os.path.exists(pythonw):
-            pythonw = python_exe
-        cmd = f'"{pythonw}" -m claisum inject'
+
+        # Copy EXE to stable location (only meaningful when frozen)
+        if getattr(sys, "frozen", False):
+            dest = _claisum_appdata_exe()
+            dest_dir = os.path.dirname(dest)
+            os.makedirs(dest_dir, exist_ok=True)
+            src = sys.executable
+            if os.path.abspath(src) != os.path.abspath(dest):
+                shutil.copy2(src, dest)
+            cmd = f'"{dest}" /inject'
+        else:
+            # Dev mode — use python -m claisum inject as fallback
+            python_exe = _find_python()
+            if not python_exe:
+                return
+            pythonw = python_exe.replace("python.exe", "pythonw.exe")
+            if not os.path.exists(pythonw):
+                pythonw = python_exe
+            cmd = f'"{pythonw}" -m claisum inject'
+
         key = winreg.OpenKey(
             winreg.HKEY_CURRENT_USER,
             STARTUP_REG_KEY,
@@ -216,7 +233,7 @@ def _register_startup() -> None:
 
 
 def _unregister_startup() -> None:
-    """Remove the Claisum Windows startup registry entry."""
+    """Remove the Claisum Windows startup registry entry and the %APPDATA% copy."""
     try:
         import winreg
         key = winreg.OpenKey(
@@ -228,6 +245,14 @@ def _unregister_startup() -> None:
         except FileNotFoundError:
             pass
         winreg.CloseKey(key)
+    except Exception:
+        pass
+
+    # Remove the stable %APPDATA%\Claisum\ copy
+    try:
+        appdata_dir = os.path.join(os.path.expandvars("%APPDATA%"), "Claisum")
+        if os.path.isdir(appdata_dir):
+            shutil.rmtree(appdata_dir, ignore_errors=True)
     except Exception:
         pass
 
@@ -733,12 +758,17 @@ class App(tk.Tk):
         self._upd("Python-Paket deinstallieren…", 0.93)
         _pip_uninstall_claisum()
 
+        # Schedule self-deletion of THIS EXE so the installer itself
+        # is gone after uninstall (PowerShell waits 2 s then deletes)
+        self._upd("Installer entfernen…", 0.97)
+        _schedule_self_delete()
+
         self._upd("Fertig!", 1.0)
         self.after(500, lambda: self._finish(
             True,
             "Claisum vollständig entfernt!\n\n"
             "Discord wurde wiederhergestellt.\n"
-            "Das 'claisum' Kommando wurde ebenfalls entfernt.\n"
+            "Der Installer löscht sich selbst in wenigen Sekunden.\n"
             "Starte Discord um zu bestätigen, dass es normal öffnet."))
 
     def _finish(self, ok: bool, msg: str, detail: str = "") -> None:
@@ -830,5 +860,68 @@ class App(tk.Tk):
         btn.bind("<Leave>", on_leave)
 
 
+def _schedule_self_delete() -> None:
+    """Spawn a hidden PowerShell process that deletes this EXE after 3 s.
+
+    Because a running EXE cannot delete itself on Windows, we launch a
+    detached PowerShell that waits for the process to exit, then removes
+    the file.  Works for both the Downloads copy and any %APPDATA% copy.
+    """
+    if not getattr(sys, "frozen", False):
+        return  # dev mode — nothing to delete
+    try:
+        exe = os.path.abspath(sys.executable)
+        # Also clean up %APPDATA%\Claisum\ if different from current EXE
+        appdata_exe = _claisum_appdata_exe()
+        targets = {exe}
+        if os.path.exists(appdata_exe):
+            targets.add(os.path.abspath(appdata_exe))
+        for target in targets:
+            ps_cmd = (
+                f"Start-Sleep -Seconds 3; "
+                f"Remove-Item -LiteralPath '{target}' -Force -ErrorAction SilentlyContinue; "
+                f"$d = Split-Path '{target}'; "
+                f"if((Get-ChildItem $d -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0)"
+                f"{{Remove-Item $d -Force -ErrorAction SilentlyContinue}}"
+            )
+            subprocess.Popen(
+                ["powershell", "-WindowStyle", "Hidden", "-Command", ps_cmd],
+                creationflags=0x00000008,  # DETACHED_PROCESS
+                close_fds=True)
+    except Exception:
+        pass  # Non-fatal
+
+
+def _do_silent_inject() -> None:
+    """Called when the EXE is launched with /inject (by the startup entry).
+
+    Re-injects Claisum into any Discord app-X.X.X directories that are
+    missing the injection (e.g. after a Discord auto-update).  No GUI shown.
+    """
+    res_dirs = find_all_discord_resources()
+    if not res_dirs:
+        return
+
+    inject_src = get_bundled_file("claisum_inject.js")
+    bootstrap_src = get_bundled_file("claisum_bootstrap.js")
+    if not inject_src or not bootstrap_src:
+        return
+
+    with open(inject_src, "rb") as f:
+        inject_bytes = f.read()
+    with open(bootstrap_src, "rb") as f:
+        bootstrap_bytes = f.read()
+
+    for res_dir in res_dirs:
+        if not is_claisum_installed(res_dir):
+            try:
+                do_inject_resources(res_dir, inject_bytes, bootstrap_bytes)
+            except Exception:
+                pass
+
+
 if __name__ == "__main__":
-    App().mainloop()
+    if "/inject" in sys.argv or "--inject" in sys.argv:
+        _do_silent_inject()
+    else:
+        App().mainloop()
