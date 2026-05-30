@@ -57,8 +57,9 @@ Source code: https://github.com/{repo}
 
 # ══ Helpers ════════════════════════════════════════════════════════════════
 
-def find_discord() -> str | None:
-    """Return the newest discord_desktop_core index.js path, or None."""
+def find_all_discord() -> list[str]:
+    """Return ALL discord_desktop_core index.js paths (all versions, all flavours).
+    Injecting into every one ensures Discord updates don't break Claisum."""
     candidates = []
     for name in ("Discord", "discordptb", "discordcanary", "DiscordPTB", "DiscordCanary"):
         base = os.path.join(os.path.expandvars("%LOCALAPPDATA%"), name)
@@ -66,7 +67,13 @@ def find_discord() -> str | None:
             base, "app-*", "modules",
             "discord_desktop_core-*", "discord_desktop_core", "index.js")
         candidates.extend(glob.glob(pattern))
-    return sorted(candidates)[-1] if candidates else None
+    return sorted(set(candidates))
+
+
+def find_discord() -> str | None:
+    """Return the single newest discord_desktop_core index.js, or None."""
+    c = find_all_discord()
+    return c[-1] if c else None
 
 
 def discord_running() -> bool:
@@ -469,47 +476,56 @@ class App(tk.Tk):
             kill_discord()
             import time; time.sleep(1.5)
 
-        self._upd("Locating Discord installation…", 0.20)
-        idx = find_discord()
-        if not idx:
+        self._upd("Locating Discord installations…", 0.15)
+        indices = find_all_discord()
+        if not indices:
             raise RuntimeError(
                 "Discord not found on this PC.\n\n"
                 "Please install Discord first:\n"
                 "https://discord.com/download")
+        self._upd(f"Found {len(indices)} Discord installation(s).", 0.22)
 
-        core = os.path.dirname(idx)
-        dest = os.path.join(core, "claisum_inject.js")
-
-        self._upd("Downloading Claisum inject script…", 0.45)
+        self._upd("Downloading Claisum inject script…", 0.35)
         src = get_inject_src()
-        if src:
-            shutil.copy2(src, dest)
-        else:
+        js_content = None
+        if not src:
             try:
-                urllib.request.urlretrieve(
+                import io
+                with urllib.request.urlopen(
                     f"https://raw.githubusercontent.com/{REPO}"
-                    "/main/claisum/discord/claisum_inject.js",
-                    dest)
+                    "/main/claisum/discord/claisum_inject.js"
+                ) as r:
+                    js_content = r.read()
             except Exception as e:
                 raise RuntimeError(
                     f"Could not download claisum_inject.js: {e}\n"
                     "Check your internet connection.") from e
 
-        self._upd("Patching Discord core module…", 0.78)
-        do_inject(idx)
-        self._upd("Verifying patch…", 0.92)
-        with open(idx, "r", encoding="utf-8") as f:
-            if MARKER not in f.read():
-                raise RuntimeError("Patch verification failed — index.js was not modified.")
+        step = 0.60 / max(len(indices), 1)
+        for i, idx in enumerate(indices):
+            self._upd(f"Patching [{i+1}/{len(indices)}]…", 0.40 + i * step)
+            core = os.path.dirname(idx)
+            dest = os.path.join(core, "claisum_inject.js")
+            if src:
+                shutil.copy2(src, dest)
+            else:
+                with open(dest, "wb") as f:
+                    f.write(js_content)
+            do_inject(idx)
+
+        self._upd("Verifying patches…", 0.95)
+        for idx in indices:
+            with open(idx, "r", encoding="utf-8") as f:
+                if MARKER not in f.read():
+                    raise RuntimeError(f"Patch verification failed:\n{idx}")
 
         self._upd("Done!", 1.0)
         self.after(500, lambda: self._finish(
             True,
             "Claisum installed successfully!\n\n"
-            "\u26a1 You will see a glowing button in the bottom-left\n"
-            "   corner of Discord after you restart it.\n\n"
-            "\U0001f504 Claisum checks for updates automatically every\n"
-            "   time Discord starts — no action needed."))
+            "\u26a1 Click the glowing ⚡ button in the bottom-left of Discord\n"
+            "   to open the Claisum panel — or press F8.\n\n"
+            "\U0001f504 Claisum updates automatically every time Discord starts."))
 
     def _do_uninstall(self) -> None:
         if discord_running():
@@ -517,26 +533,26 @@ class App(tk.Tk):
             kill_discord()
             import time; time.sleep(1.5)
 
-        self._upd("Locating Discord installation…", 0.30)
-        idx = find_discord()
-        if not idx:
+        self._upd("Locating Discord installations…", 0.20)
+        indices = find_all_discord()
+        if not indices:
             raise RuntimeError("Discord installation not found.")
 
-        dest = os.path.join(os.path.dirname(idx), "claisum_inject.js")
+        step = 0.70 / max(len(indices), 1)
+        for i, idx in enumerate(indices):
+            self._upd(f"Removing [{i+1}/{len(indices)}]…", 0.25 + i * step)
+            do_remove(idx)
+            dest = os.path.join(os.path.dirname(idx), "claisum_inject.js")
+            try:
+                os.remove(dest)
+            except FileNotFoundError:
+                pass
 
-        self._upd("Removing Claisum from Discord core…", 0.60)
-        removed = do_remove(idx)
-
-        self._upd("Deleting Claisum files…", 0.80)
-        try:
-            os.remove(dest)
-        except FileNotFoundError:
-            pass
-
-        self._upd("Verifying removal…", 0.93)
-        with open(idx, "r", encoding="utf-8") as f:
-            if MARKER in f.read():
-                raise RuntimeError("Removal verification failed — traces remain in index.js.")
+        self._upd("Verifying removal…", 0.95)
+        for idx in indices:
+            with open(idx, "r", encoding="utf-8") as f:
+                if MARKER in f.read():
+                    raise RuntimeError(f"Removal failed — traces remain:\n{idx}")
 
         self._upd("Done!", 1.0)
         self.after(500, lambda: self._finish(
@@ -577,16 +593,43 @@ class App(tk.Tk):
             tb_txt.configure(state="disabled")
             tb_txt.pack(fill="both", expand=True)
 
+        if ok and self.action.get() in ("install", "repair"):
+            btn_row = tk.Frame(self.body, bg=BG, padx=24)
+            btn_row.pack(fill="x", pady=(14, 0))
+            launch_btn = tk.Button(
+                btn_row, text="▶  Launch Discord",
+                bg=OK, fg="#fff", bd=0, relief="flat",
+                font=("Segoe UI", 10, "bold"), padx=18, pady=7,
+                cursor="hand2",
+                command=self._launch_and_close)
+            launch_btn.pack(side="left")
+            self._bind_hover(launch_btn, OK, "#3ca374")
+
         if ok:
             tip = tk.Frame(self.body, bg=BG3)
-            tip.pack(fill="x", padx=24, pady=(14, 0))
+            tip.pack(fill="x", padx=24, pady=(10, 0))
             tk.Label(tip, text=" TIP ",
                      bg=ACC2, fg="#fff",
                      font=("Courier", 8, "bold")).pack(
                 side="left", padx=(10, 8), pady=8)
-            tk.Label(tip, text="Press Ctrl+Shift+C inside Discord to toggle the Claisum panel.",
+            tk.Label(tip, text="Click the ⚡ button (bottom-left in Discord) or press F8 to open the panel.",
                      bg=BG3, fg=DIM, font=("Segoe UI", 9)).pack(
                 side="left", pady=8)
+
+    def _launch_and_close(self) -> None:
+        try:
+            local = os.path.join(os.path.expandvars("%LOCALAPPDATA%"), "Discord", "Update.exe")
+            if os.path.exists(local):
+                subprocess.Popen([local, "--processStart", "Discord.exe"])
+            else:
+                for name in ("Discord", "DiscordPTB", "DiscordCanary"):
+                    exe = os.path.join(os.path.expandvars("%LOCALAPPDATA%"), name, "Discord.exe")
+                    if os.path.exists(exe):
+                        subprocess.Popen([exe])
+                        break
+        except Exception:
+            pass
+        self.destroy()
 
     # ── Hover effects ───────────────────────────────────────────────────────
 
