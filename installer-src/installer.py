@@ -233,16 +233,38 @@ def _unregister_startup() -> None:
 
 
 def _pip_uninstall_claisum() -> None:
-    """Uninstall the claisum Python package via pip (best-effort)."""
+    """Uninstall the claisum Python package via pip (best-effort).
+
+    Tries multiple strategies so it works whether the user has Python
+    in PATH or not, and whether they installed via pip or pipx.
+    """
+    candidates: list[list[str]] = []
+
     python_exe = _find_python()
-    if not python_exe:
-        return
-    try:
-        subprocess.run(
-            [python_exe, "-m", "pip", "uninstall", "claisum", "-y"],
-            capture_output=True, timeout=30)
-    except Exception:
-        pass  # Non-fatal — pip may not be available in all setups
+    if python_exe:
+        candidates.append([python_exe, "-m", "pip", "uninstall", "claisum", "-y"])
+
+    # Also try pip / pip3 directly (may point to a different env than python)
+    for pip_name in ("pip", "pip3", "pip3.12", "pip3.11", "pip3.10"):
+        p = shutil.which(pip_name)
+        if p:
+            candidates.append([p, "uninstall", "claisum", "-y"])
+            break  # one direct-pip attempt is enough
+
+    # Try pipx too (some users install CLI tools via pipx)
+    pipx = shutil.which("pipx")
+    if pipx:
+        candidates.append([pipx, "uninstall", "claisum"])
+
+    for cmd in candidates:
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
+            if result.returncode == 0:
+                return  # success — stop trying
+        except Exception:
+            pass  # try next candidate
+
+    # All attempts failed silently — non-fatal, installer still cleaned Discord
 
 
 # ══ GUI ════════════════════════════════════════════════════════════════════
