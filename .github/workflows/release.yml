@@ -29,6 +29,7 @@ jobs:
         run: |
           pyinstaller --onefile --windowed --name "Claisum_Setup" `
             --add-data "claisum/discord/claisum_inject.js;." `
+            --add-data "claisum/discord/claisum_bootstrap.js;." `
             installer-src/installer.py
       - name: Upload to release
         uses: softprops/action-gh-release@v2
