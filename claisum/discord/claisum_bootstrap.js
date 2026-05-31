@@ -2,61 +2,48 @@
 // Do NOT remove manually; use the Claisum installer to uninstall.
 //
 // How this works:
-//   Electron prefers resources/app/ over resources/app.asar when both exist.
-//   We intercept Module._load to patch the electron module BEFORE Discord
-//   ever sees it, then register claisum_inject.js as a preload on every
-//   session (defaultSession + each partitioned session via browser-window-created).
-//   Finally we hand control back to the real Discord app.asar.
+//   Electron loads resources/app/index.js before resources/app.asar.
+//   Critical: we must call app.setAppPath() pointing at app.asar so Discord's
+//   own code sees the right base path when it calls app.getAppPath().
+//   Then we register claisum_inject.js as a preload via session.setPreloads()
+//   and hand control to the real Discord asar.
 'use strict';
 const path   = require('path');
 const Module = require('module');
 
+// Grab electron without the cache entry pointing at our resources/app dir
+const electron = require('electron');
+const { app }  = electron;
+
+const _asarPath     = path.join(__dirname, '..', 'app.asar');
 const _claisumPreload = path.join(__dirname, 'claisum_inject.js');
 
-// ── Intercept electron before Discord loads it ────────────────────────────
-const _origLoad = Module._load;
-Module._load = function(request, parent, isMain) {
-  const result = _origLoad.apply(this, arguments);
-  if (request !== 'electron' || result.__claisumPatched) return result;
-  result.__claisumPatched = true;
+// ── 1. Fix Discord's app path so app.getAppPath() returns app.asar, not us ──
+app.setAppPath(_asarPath);
 
-  const { app } = result;
-
-  // Add our preload to a session (idempotent)
-  function _addToSession(ses) {
-    try {
-      if (!ses || !ses.setPreloads) return;
-      const list = (ses.getPreloads ? ses.getPreloads() : [])
-        .filter(function(p) { return p !== _claisumPreload; });
-      ses.setPreloads([_claisumPreload].concat(list));
-    } catch(e) {}
+// ── 2. Register claisum_inject.js as a renderer preload ────────────────────
+function _installPreload() {
+  try {
+    const sess = electron.session && electron.session.defaultSession;
+    if (!sess) return;
+    const existing = typeof sess.getPreloads === 'function' ? sess.getPreloads() : [];
+    if (existing.indexOf(_claisumPreload) < 0) {
+      if (typeof sess.setPreloads === 'function') {
+        sess.setPreloads(existing.concat([_claisumPreload]));
+      }
+    }
+  } catch (e) {
+    console.error('[Claisum] preload registration failed:', e);
   }
+}
 
-  // Register on defaultSession once app is ready
-  function _onReady() {
-    try { _addToSession(result.session.defaultSession); } catch(e) {}
-  }
-  if (app.isReady()) { _onReady(); }
-  else { app.once('ready', _onReady); }
+if (app.isReady()) {
+  _installPreload();
+} else {
+  app.once('ready', _installPreload);
+}
 
-  // Also patch every new window's session to cover partitioned sessions
-  // (Discord uses partitioned sessions for some windows in newer versions)
-  app.on('browser-window-created', function(_, win) {
-    try { _addToSession(win.webContents.session); } catch(e) {}
-    // Fallback: if setPreloads didn't work, try executeJavaScript after load
-    win.webContents.on('did-finish-load', function() {
-      try {
-        win.webContents.executeJavaScript(
-          'if(!window.__claisumLoaded){try{require("' +
-          _claisumPreload.replace(/\\/g, '\\\\') +
-          '")}catch(e){}}'
-        ).catch(function(){});
-      } catch(e) {}
-    });
-  });
-
-  return result;
-};
-
-// ── Hand control to the real Discord ─────────────────────────────────────
-require(path.join(__dirname, '..', 'app.asar'));
+// ── 3. Boot the real Discord ────────────────────────────────────────────────
+// Make Module._resolveFilename resolve paths relative to app.asar, not our dir
+const _realMain = require.resolve(path.join(_asarPath, 'index.js'));
+Module._load(_realMain, null, true);
